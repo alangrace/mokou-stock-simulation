@@ -177,13 +177,15 @@ python3.12 -m papertrader.cli plan-load --file plans/entry-20261118-defensive.js
 
 ```bash
 python3.12 -m papertrader.cli run --account 回放盘-20261118 \
-  --replay --as-of "2026-11-18 10:30"
+  --replay --as-of "2026-11-19 10:30"
 ```
 
 - 成交价：取该时点或之前最近一根 1 分钟 K 线的收盘价；
 - 指标：日 K 只用到 `as-of` 前一日，避免未来函数；
 - 交易日/时段：按 `as-of` 判断；
 - 所有决策/流水标记 `data_source=replay`，播报带 `[回放]` 前缀。
+
+> 回放只能回放**当天**：东财 1 分钟接口只返回当日分时，`--as-of` 写更早的交易日会全部 `no_data`。要回放历史交易日需先补历史分钟线数据源。
 
 ---
 

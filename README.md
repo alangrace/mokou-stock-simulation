@@ -14,6 +14,22 @@
    - 计划驱动、宏观档位仓位上限、A 股费用/整手/涨跌停/T+1、原子成交、决策留痕、成交播报；
    - 支持实时心跳与历史时点回放。
 
+## 在新电脑上运行
+
+换一台机器只需要 Python ≥ 3.12 和能访问东方财富的网络，不需要第三方依赖、数据库服务或 API key：
+
+```bash
+git clone https://github.com/alangrace/mokou-stock-simulation.git
+cd mokou-stock-simulation/sayu-paper-trader
+python3.12 -m papertrader.cli init --account 默认模拟盘 --cash 1000000
+python3.12 -m papertrader.cli plan-load --file plans/entry-20261118-defensive.json
+python3.12 -m papertrader.cli tick --account 默认模拟盘
+```
+
+完整步骤（含定时任务、回放、迁移旧账本、故障排查、验收清单）见 **[docs/new-machine-runbook.md](docs/new-machine-runbook.md)**；给 agent 看的执行约定见 **[AGENTS.md](AGENTS.md)**。
+
+注意：账本 `data/paper.db` 不入库，新机器是空库，必须先 `init`；定时任务不随仓库迁移，需按 runbook 第 6 节重建。
+
 ## 快速查看
 
 ```bash
