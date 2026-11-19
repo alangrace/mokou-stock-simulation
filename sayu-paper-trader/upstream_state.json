@@ -1,0 +1,14 @@
+{
+  "repo": "KimigaiiWuyi/SayuStock",
+  "branch": "main",
+  "last_seen_sha": "64db0c1492cc3257cb59e414b2c8fc8fcef19afa",
+  "last_seen_date": "2026-11-17T20:14:12Z",
+  "last_checked_at": "2026-11-19T10:17:00+08:00",
+  "watch_paths": [
+    "SayuStock/stock_papertrade",
+    "SayuStock/stock_agent",
+    "SayuStock/stock_macro",
+    "SayuStock/utils/database/papertrade_models.py"
+  ],
+  "note": "发现更新先报告并等待确认；未确认前不要改本地复刻、账本或入场计划。"
+}

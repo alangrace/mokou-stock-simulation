@@ -1,0 +1,176 @@
+{
+  "plan_id": "screen-universe-20261118",
+  "name": "候选池初筛（20 只）",
+  "account": "默认模拟盘",
+  "created_at": "2026-11-18T11:40:00+08:00",
+  "macro": {
+    "regime": "中性",
+    "note": "上证指数在 MA20 附近震荡，量能温和，暂未出现系统性风险事件",
+    "risk_off_severe": false,
+    "risk_off_titles": ""
+  },
+  "risk": {
+    "initial_cash": 1000000,
+    "max_total_exposure_pct": 0.6,
+    "max_single_pct": 0.1,
+    "max_positions": 6,
+    "min_cash_pct": 0.1,
+    "max_daily_trades": 12,
+    "max_drawdown_pct": -0.2
+  },
+  "entry": {
+    "min_score": 0.2,
+    "max_candidates_per_round": 3,
+    "require_above_ma20": true,
+    "min_rsi6": 30,
+    "max_rsi6": 70,
+    "max_change_pct": 7,
+    "stop_pct": -0.06,
+    "take_pct": 0.12
+  },
+  "exit": {
+    "score_exit": -0.45
+  },
+  "universe": [
+    {
+      "code": "600519",
+      "name": "贵州茅台",
+      "sector": "白酒",
+      "thesis": "高端白酒龙头，品牌壁垒与现金流稳定，回撤后估值进入可接受区间",
+      "weight": 1
+    },
+    {
+      "code": "000858",
+      "name": "五粮液",
+      "sector": "白酒",
+      "thesis": "次高端白酒龙头，渠道库存改善，估值处于历史低位",
+      "weight": 1
+    },
+    {
+      "code": "600036",
+      "name": "招商银行",
+      "sector": "银行",
+      "thesis": "零售银行龙头，ROE 与资产质量领先，高股息防守",
+      "weight": 1
+    },
+    {
+      "code": "601318",
+      "name": "中国平安",
+      "sector": "保险",
+      "thesis": "保险龙头，低估值，负债端与投资端均有修复空间",
+      "weight": 1
+    },
+    {
+      "code": "600030",
+      "name": "中信证券",
+      "sector": "券商",
+      "thesis": "券商龙头，市场成交活跃度提升时弹性大",
+      "weight": 1
+    },
+    {
+      "code": "300750",
+      "name": "宁德时代",
+      "sector": "锂电",
+      "thesis": "全球动力电池龙头，储能与海外客户带来增量",
+      "weight": 1
+    },
+    {
+      "code": "002594",
+      "name": "比亚迪",
+      "sector": "汽车",
+      "thesis": "新能源车龙头，出口与高端车型放量",
+      "weight": 1
+    },
+    {
+      "code": "601899",
+      "name": "紫金矿业",
+      "sector": "有色",
+      "thesis": "金铜资源龙头，受益于金价与铜价上行",
+      "weight": 1
+    },
+    {
+      "code": "600900",
+      "name": "长江电力",
+      "sector": "公用事业",
+      "thesis": "水电龙头，现金流稳定，防御属性强",
+      "weight": 1
+    },
+    {
+      "code": "600276",
+      "name": "恒瑞医药",
+      "sector": "医药",
+      "thesis": "创新药龙头，出海授权与新品放量",
+      "weight": 1
+    },
+    {
+      "code": "000333",
+      "name": "美的集团",
+      "sector": "家电",
+      "thesis": "白电龙头，以旧换新与海外业务支撑",
+      "weight": 1
+    },
+    {
+      "code": "600887",
+      "name": "伊利股份",
+      "sector": "食品饮料",
+      "thesis": "乳制品龙头，必需消费属性，估值低位",
+      "weight": 1
+    },
+    {
+      "code": "601166",
+      "name": "兴业银行",
+      "sector": "银行",
+      "thesis": "股份行，低估值高股息，资产质量改善",
+      "weight": 1
+    },
+    {
+      "code": "600309",
+      "name": "万华化学",
+      "sector": "化工",
+      "thesis": "化工龙头，周期底部，成本优势明显",
+      "weight": 1
+    },
+    {
+      "code": "002415",
+      "name": "海康威视",
+      "sector": "电子",
+      "thesis": "安防与智能物联龙头，需求温和复苏",
+      "weight": 1
+    },
+    {
+      "code": "601088",
+      "name": "中国神华",
+      "sector": "煤炭",
+      "thesis": "煤电一体化，高股息，现金流强",
+      "weight": 1
+    },
+    {
+      "code": "600028",
+      "name": "中国石化",
+      "sector": "石化",
+      "thesis": "一体化石化龙头，高股息防御",
+      "weight": 1
+    },
+    {
+      "code": "002475",
+      "name": "立讯精密",
+      "sector": "电子",
+      "thesis": "消费电子与 AI 硬件代工龙头，客户扩张",
+      "weight": 1
+    },
+    {
+      "code": "300059",
+      "name": "东方财富",
+      "sector": "券商",
+      "thesis": "互联网券商，市场活跃度提升的 Beta 标的",
+      "weight": 1
+    },
+    {
+      "code": "601668",
+      "name": "中国建筑",
+      "sector": "建筑",
+      "thesis": "低估值建筑央企，高股息与稳增长",
+      "weight": 1
+    }
+  ]
+}

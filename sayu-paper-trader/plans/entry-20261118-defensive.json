@@ -1,0 +1,117 @@
+{
+  "plan_id": "entry-20261118-defensive",
+  "name": "2026-11-18 防御档入场计划",
+  "account": "默认模拟盘",
+  "created_at": "2026-11-18T11:45:00+08:00",
+  "macro": {
+    "regime": "防御",
+    "note": "上证 3570 位于 MA20(3648)/MA60(3799) 下方，RSI6 13 超卖、20 日 -3.9%，量能偏弱；按防御档总仓≤30%、单票≤5%，只买高股息/公用/必需消费/上游资源",
+    "risk_off_severe": false,
+    "risk_off_titles": ""
+  },
+  "risk": {
+    "initial_cash": 1000000,
+    "max_total_exposure_pct": 0.8,
+    "max_single_pct": 0.1,
+    "max_positions": 8,
+    "min_cash_pct": 0.1,
+    "max_daily_trades": 12,
+    "max_drawdown_pct": -0.2
+  },
+  "entry": {
+    "min_score": 0.2,
+    "max_candidates_per_round": 3,
+    "max_per_sector": 1,
+    "require_above_ma20": true,
+    "min_rsi6": 30,
+    "max_rsi6": 75,
+    "max_change_pct": 7,
+    "stop_pct": -0.06,
+    "take_pct": 0.12
+  },
+  "exit": {
+    "score_exit": -0.45
+  },
+  "universe": [
+    {
+      "code": "601166",
+      "name": "兴业银行",
+      "sector": "银行",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "低估值股份行，股息率提供安全垫；均线多头 + MACD 金叉，作为防御档银行底仓"
+    },
+    {
+      "code": "600036",
+      "name": "招商银行",
+      "sector": "银行",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "零售银行龙头，ROE 与资产质量领先；与兴业二选一，按评分择优"
+    },
+    {
+      "code": "601668",
+      "name": "中国建筑",
+      "sector": "建筑",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "低估值建筑央企，高股息与稳增长属性；均线多头，防御档可用"
+    },
+    {
+      "code": "600900",
+      "name": "长江电力",
+      "sector": "公用事业",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "水电龙头，现金流稳定；等 RSI 从超买回落再考虑，不追高"
+    },
+    {
+      "code": "600028",
+      "name": "中国石化",
+      "sector": "石化",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "一体化石化龙头，高股息；RSI 未超买时作为防御底仓"
+    },
+    {
+      "code": "600887",
+      "name": "伊利股份",
+      "sector": "食品饮料",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "乳制品龙头，必需消费属性；估值低位，等超买消化"
+    },
+    {
+      "code": "601088",
+      "name": "中国神华",
+      "sector": "煤炭",
+      "weight": 0.8,
+      "defensive": true,
+      "thesis": "煤电一体化，高股息；RSI 过高，只做观察"
+    },
+    {
+      "code": "600276",
+      "name": "恒瑞医药",
+      "sector": "医药",
+      "weight": 0.8,
+      "defensive": true,
+      "thesis": "创新药龙头，防御属性；当前跌破 MA20，等趋势修复"
+    },
+    {
+      "code": "600519",
+      "name": "贵州茅台",
+      "sector": "白酒",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "高端消费龙头，回踩 MA20 后企稳；仅在宏观转中性/进攻时考虑"
+    },
+    {
+      "code": "002415",
+      "name": "海康威视",
+      "sector": "电子",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "安防与智能物联龙头，MACD 金叉；防御档不买成长，观察"
+    }
+  ]
+}

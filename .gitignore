@@ -1,0 +1,24 @@
+# macOS
+.DS_Store
+
+# 本地密钥 / 凭据（deploy key 等，绝不提交）
+.git-keys/
+*.pem
+*.key
+.env
+
+# 上游参考克隆：仅本地对照，不随本仓库分发
+SayuStock/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 模拟盘运行时数据（本地账本、日志、缓存）
+sayu-paper-trader/data/
+sayu-paper-trader/logs/
+*.db
+*.db-wal
+*.db-shm
