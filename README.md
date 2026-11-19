@@ -1,5 +1,7 @@
 # SayuStock 模拟盘功能分析 · 交付物
 
+对 [KimigaiiWuyi/SayuStock](https://github.com/KimigaiiWuyi/SayuStock)（GPL-3.0-or-later）模拟盘「自主交易」能力的研究与独立复刻。上游源码仅作本地对照，**不随本仓库分发**；本仓库只包含分析文档与独立实现的代码。
+
 本目录包含两部分：
 
 1. **机制分析**：[analysis/SayuStock-模拟盘机制分析与复刻.md](analysis/SayuStock-模拟盘机制分析与复刻.md)
