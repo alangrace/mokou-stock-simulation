@@ -10,12 +10,12 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 _TMP = tempfile.mkdtemp(prefix="sayu-paper-test-")
 os.environ["SAYU_PAPER_DB"] = os.path.join(_TMP, "test.db")
 
-from papertrader import ledger, macro, proposal, rules  # noqa: E402
+from papertrader import ledger, macro, plan_revision, proposal, rules  # noqa: E402
 from papertrader.calendar import session_state  # noqa: E402
 from papertrader.config import TZ  # noqa: E402
 from papertrader.indicators import compute  # noqa: E402
@@ -324,6 +324,99 @@ class ProposalTests(unittest.TestCase):
     def test_log_rejects_bad_action(self) -> None:
         with self.assertRaises(ValueError):
             proposal.log_decision(self.account["name"], {"action": "short"})
+
+
+class PlanRevisionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.now = datetime(2026, 11, 20, 15, 40, tzinfo=TZ)
+        self.position = {
+            "code": "600887",
+            "name": "伊利股份",
+            "avg_cost": 32.338,
+            "plan_stop_price": 30.39,
+            "plan_stop_pct": -0.06,
+            "plan_take_price": 36.21,
+            "plan_thesis": "测试",
+            "plan_updated_at": "2026-11-18T13:14:59+08:00",
+            "plan_rev_count": 0,
+        }
+
+    def test_trail_stop_only_up_and_step(self) -> None:
+        ok = plan_revision.evaluate(
+            self.position, {},
+            {"revision_type": "trail_stop", "plan_stop_price": 31.5, "reason": "测试修订理由"},
+            35.0, self.now,
+        )
+        self.assertTrue(ok["ok"], ok)
+        widen = plan_revision.evaluate(
+            self.position, {},
+            {"revision_type": "trail_stop", "plan_stop_price": 30.0, "reason": "测试修订理由"},
+            35.0, self.now,
+        )
+        self.assertEqual(widen["blocked_by"], "stop_widen")
+        step = plan_revision.evaluate(
+            self.position, {},
+            {"revision_type": "trail_stop", "plan_stop_price": 30.5, "reason": "测试修订理由"},
+            35.0, self.now,
+        )
+        self.assertEqual(step["blocked_by"], "step_too_small")
+
+    def test_trail_stop_requires_profit(self) -> None:
+        result = plan_revision.evaluate(
+            self.position, {},
+            {"revision_type": "trail_stop", "plan_stop_price": 31.5, "reason": "测试修订理由"},
+            33.35, self.now,
+        )
+        self.assertEqual(result["blocked_by"], "not_enough_profit")
+
+    def test_cooldown(self) -> None:
+        position = dict(self.position, plan_updated_at=(self.now - timedelta(hours=1)).isoformat())
+        result = plan_revision.evaluate(
+            position, {},
+            {"revision_type": "trail_stop", "plan_stop_price": 31.5, "reason": "测试修订理由"},
+            35.0, self.now,
+        )
+        self.assertEqual(result["blocked_by"], "cooldown")
+
+    def test_take_adjust_near_old_take(self) -> None:
+        result = plan_revision.evaluate(
+            self.position, {},
+            {
+                "revision_type": "take_adjust",
+                "plan_take_price": 38.0,
+                "reason": "测试修订理由",
+                "evidence": "测试突破",
+            },
+            35.8, self.now,
+        )
+        self.assertEqual(result["blocked_by"], "take_near")
+
+    def test_backfill(self) -> None:
+        position = dict(self.position, plan_stop_price=None, plan_stop_pct=None, plan_take_price=None)
+        result = plan_revision.evaluate(
+            position, {},
+            {
+                "revision_type": "backfill",
+                "plan_stop_price": 30.0,
+                "plan_take_price": 36.0,
+                "reason": "测试修订理由",
+            },
+            33.0, self.now,
+        )
+        self.assertTrue(result["ok"], result)
+
+    def test_macro_tighten(self) -> None:
+        result = plan_revision.evaluate(
+            self.position, {},
+            {
+                "revision_type": "macro_tighten",
+                "plan_stop_price": 31.5,
+                "macro_regime": "防御",
+                "reason": "测试修订理由",
+            },
+            33.0, self.now,
+        )
+        self.assertTrue(result["ok"], result)
 
 
 if __name__ == "__main__":

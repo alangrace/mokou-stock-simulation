@@ -288,6 +288,10 @@ python3.12 -m papertrader.cli agent indicators --code 600028
 python3.12 -m papertrader.cli agent trade --dry-run --json '{"action":"buy","code":"600900","qty":1000,"plan_stop_pct":-0.06,"plan_take_pct":0.12,"macro_regime":"防御","macro_note":"……","reason":"……"}'
 python3.12 -m papertrader.cli agent decision --json '{"action":"hold","code":"600028","score":0.2,"reason":"……"}'
 python3.12 -m papertrader.cli agent runs --limit 20
+
+# P1a：只校验计划修订，不写库
+python3.12 -m papertrader.cli agent plan-update --dry-run --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
+python3.12 -m papertrader.cli agent plan-update --dry-run --json '{"code":"600887","revision_type":"take_adjust","plan_take_price":38,"reason":"突破后上调","evidence":"放量站上MA20"}'
 ```
 
 详细设计见 [docs/agent-mode-design.md](../docs/agent-mode-design.md)。P2 dry-run 已启动：2026-11-20 13:00 至 2026-11-23 15:00，2 个交易日，只写 `agent_run`，不成交。

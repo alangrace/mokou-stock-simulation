@@ -20,7 +20,7 @@ from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 
 from . import agent as agent_mod
-from . import dashboard, ledger, macro, proposal, report
+from . import dashboard, ledger, macro, plan_revision, proposal, report
 from .calendar import ensure_tz, session_state
 from .config import LOG_DIR, REPORT_DIR, TZ
 from .engine import run_once, write_daily_snapshot
@@ -283,6 +283,14 @@ def cmd_agent_runs(args) -> int:
     return 0
 
 
+def cmd_agent_plan_update(args) -> int:
+    if not args.dry_run:
+        raise SystemExit("P1a 只允许 dry-run；真正写入计划在 P1b/P3 开启，请加 --dry-run")
+    result = plan_revision.validate(args.account, _json_payload(args))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_tick(args) -> int:
     """定时任务专用：交易时段跑一轮；收盘后写快照；其余时段直接跳过。"""
     state = session_state()
@@ -431,6 +439,13 @@ def build_parser() -> argparse.ArgumentParser:
     aruns.add_argument("--limit", type=int, default=20)
     aruns.add_argument("--json", action="store_true")
     aruns.set_defaults(func=cmd_agent_runs)
+
+    aplan = agent_sub.add_parser("plan-update", help="dry-run 校验持仓止损/止盈修订（P1a 不写库）")
+    aplan.add_argument("--account", default="默认模拟盘")
+    aplan.add_argument("--json", default="")
+    aplan.add_argument("--file", default="")
+    aplan.add_argument("--dry-run", action="store_true")
+    aplan.set_defaults(func=cmd_agent_plan_update)
 
     amacro = agent_sub.add_parser("macro", help="宏观事件表 / 快照")
     amacro_sub = amacro.add_subparsers(dest="macro_cmd", required=True)

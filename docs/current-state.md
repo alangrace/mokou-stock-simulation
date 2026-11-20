@@ -49,6 +49,7 @@
 - 中性档：总仓 60%、单票 10% → 6 只满单票
 - 自动切档：设计上已允许，但 P2 未生效；P3 才让引擎读当日 macro_snapshot
 - 2026-11-20 P0：buy 已强制止盈（plan_take_pct/plan_take_price）+ 百分比归一化（-6→-0.06，12→0.12）；agent dry-run 同步走该硬闸
+- 2026-11-20 P1a：position 已加 plan_updated_at/plan_rev_count；agent plan-update --dry-run 支持 backfill/trail_stop/macro_tighten/take_adjust；只审计、不写计划
 
 ## 4. 调度（DSH）
 
@@ -60,6 +61,7 @@
 | Agent dry-run 决策 | 2026-11-20 13:00 至 2026-11-23 15:00，工作日 09:00–14:30 每 30 分钟 | schedule-1dfe4947-ab14-49c5-87fb-377138d8161c |
 | Agent dry-run 收盘前扫描 | 同一时段 14:45 | schedule-203b40f1-5461-429d-ae74-8d8e146b916e |
 | 检查 SayuStock 模拟盘策略更新 | 每周一 09:00，首次 2026-11-23 | schedule-f3464ae8-63cd-4bf6-87c2-e972d2039b69 |
+| P3 切换复盘提醒 | 2026-11-23 15:30 一次性 | schedule-b83eff03-249f-488a-a4f6-5205426bcf2a |
 
 注意：DSH 任务只在 Harness 运行时投递；关机/睡眠会跳过或合并。
 
@@ -77,7 +79,7 @@
 ## 6. GitHub 发布
 
 - 每日 15:05：tick 写收盘快照 → scripts/publish_dashboard.sh → 生成 dashboard → 复制 docs/index.html → commit → push。
-- 已测试：脚本可 commit/push；最新 commit 以 git log 为准（2026-11-20 为 7e27528），页面数据时点以 docs/index.html 为准。
+- 已测试：脚本可 commit/push；最新 commit 以 git log 为准，页面数据时点以 docs/index.html 为准。
 - GitHub Pages 已启用，地址见上。
 - 仓库 public；dashboard 含账户/持仓/成交/决策，公开可见。
 
@@ -100,6 +102,8 @@
 ## 9. 当前待办/边界
 
 - P2 到 2026-11-23 收盘结束，之后复盘：提议数量、拒绝原因、与规则引擎差异、token 成本。
+- P1a 已完成；P1b（真正写计划）未开，P3 前不做。
+- P3 切换复盘提醒：2026-11-23 15:30（P2 收盘后），只复盘不自动切换。
 - P3 才开写；开写前确认单笔/单日上限、是否影子账户。
 - 自动切宏观档位未生效；P3 实现时按设计加防抖/高危约束。
 - 15:05 发布依赖 Harness 运行；要每天必推需加 launchd/cron。

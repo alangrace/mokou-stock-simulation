@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS position (
     plan_stop_pct REAL,
     plan_take_price REAL,
     plan_thesis TEXT,
+    plan_updated_at TEXT,
+    plan_rev_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (account_id, code)
 );
 
@@ -181,6 +183,12 @@ def connect() -> sqlite3.Connection:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        cols = {row["name"] for row in conn.execute("PRAGMA table_info(position)")}
+        if "plan_updated_at" not in cols:
+            conn.execute("ALTER TABLE position ADD COLUMN plan_updated_at TEXT")
+            conn.execute("UPDATE position SET plan_updated_at = opened_at WHERE plan_updated_at IS NULL")
+        if "plan_rev_count" not in cols:
+            conn.execute("ALTER TABLE position ADD COLUMN plan_rev_count INTEGER NOT NULL DEFAULT 0")
 
 
 @contextmanager
@@ -361,6 +369,15 @@ def record_fill(
 
         new_qty, new_avg = apply_fill(old_qty, old_avg, side, qty, price, fee)
         plan = snapshot or {}
+        plan_fields_present = any(
+            plan.get(key) is not None
+            for key in ("plan_stop_price", "plan_stop_pct", "plan_take_price", "plan_thesis")
+        )
+        plan_updated = (
+            executed.isoformat(timespec="seconds")
+            if side == "buy" and plan_fields_present
+            else None
+        )
         if new_qty <= 0:
             conn.execute("DELETE FROM position WHERE account_id = ? AND code = ?", (account_id, code))
         elif pos:
@@ -369,27 +386,30 @@ def record_fill(
                 "updated_at = ?, plan_stop_price = COALESCE(?, plan_stop_price), "
                 "plan_stop_pct = COALESCE(?, plan_stop_pct), "
                 "plan_take_price = COALESCE(?, plan_take_price), "
-                "plan_thesis = COALESCE(?, plan_thesis) "
+                "plan_thesis = COALESCE(?, plan_thesis), "
+                "plan_updated_at = COALESCE(?, plan_updated_at) "
                 "WHERE account_id = ? AND code = ?",
                 (
                     new_qty, new_avg, name, price, executed.isoformat(timespec="seconds"),
                     executed.isoformat(timespec="seconds"),
                     _num(plan.get("plan_stop_price")), _num(plan.get("plan_stop_pct")),
                     _num(plan.get("plan_take_price")), _str(plan.get("plan_thesis")),
-                    account_id, code,
+                    plan_updated, account_id, code,
                 ),
             )
         else:
             conn.execute(
                 "INSERT INTO position(account_id, code, name, qty, avg_cost, opened_at, updated_at, "
-                "last_price, last_quote_at, plan_stop_price, plan_stop_pct, plan_take_price, plan_thesis) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "last_price, last_quote_at, plan_stop_price, plan_stop_pct, plan_take_price, plan_thesis, "
+                "plan_updated_at, plan_rev_count) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     account_id, code, name, new_qty, new_avg,
                     executed.isoformat(timespec="seconds"), executed.isoformat(timespec="seconds"),
                     price, executed.isoformat(timespec="seconds"),
                     _num(plan.get("plan_stop_price")), _num(plan.get("plan_stop_pct")),
                     _num(plan.get("plan_take_price")), _str(plan.get("plan_thesis")),
+                    plan_updated, 0,
                 ),
             )
         cash_after = float(conn.execute("SELECT cash FROM account WHERE id = ?", (account_id,)).fetchone()["cash"])

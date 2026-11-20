@@ -262,6 +262,14 @@
 - dry-run 只写 agent_run，不写 trade/position/cash/decision；
 - 规则 tick 仍在跑，账户会变；dry-run 提议按当时账户校验，复盘时注意这一点。
 
+**P1a 状态（2026-11-20 已完成）**
+
+- position 表新增 plan_updated_at / plan_rev_count，并迁移旧仓；
+- 新增 agent plan-update --dry-run，支持 backfill / trail_stop / macro_tighten / take_adjust；
+- 校验：20h 冷却、≥2% 台阶、止损只上移、止盈调整约束、审计 agent_run；
+- 只审计、不写 position；真正写入留到 P1b/P3；
+- P3 切换复盘提醒定在 2026-11-23 15:30。
+
 **P3 小仓位开写**
 
 - 打开 agent trade 写库，限制单笔金额/单日次数；
