@@ -76,7 +76,7 @@
 ## 6. GitHub 发布
 
 - 每日 15:05：tick 写收盘快照 → scripts/publish_dashboard.sh → 生成 dashboard → 复制 docs/index.html → commit → push。
-- 已测试：脚本可 commit/push；当前最新 commit 37d0f21（发布说明），页面数据时点以 docs/index.html 为准。
+- 已测试：脚本可 commit/push；最新 commit 以 git log 为准（2026-11-20 为 7e27528），页面数据时点以 docs/index.html 为准。
 - GitHub Pages 已启用，地址见上。
 - 仓库 public；dashboard 含账户/持仓/成交/决策，公开可见。
 
