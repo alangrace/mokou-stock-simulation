@@ -3,12 +3,20 @@
   "branch": "main",
   "last_seen_sha": "64db0c1492cc3257cb59e414b2c8fc8fcef19afa",
   "last_seen_date": "2026-11-17T20:14:12Z",
-  "last_checked_at": "2026-11-19T10:17:00+08:00",
+  "last_checked_at": "2026-11-20T15:32:00+08:00",
   "watch_paths": [
     "SayuStock/stock_papertrade",
     "SayuStock/stock_agent",
     "SayuStock/stock_macro",
     "SayuStock/utils/database/papertrade_models.py"
   ],
-  "note": "发现更新先报告并等待确认；未确认前不要改本地复刻、账本或入场计划。"
+  "note": "发现更新先报告并等待确认；未确认前不要改本地复刻、账本或入场计划。",
+  "pending_review": {
+    "sha": "e513b64d6d40a50820a69761e5eebf64496de7a5",
+    "title": "强化多因子盘入场计划约束",
+    "date": "2026-11-19T09:28:25Z",
+    "detected_at": "2026-11-20T15:26:00+08:00",
+    "status": "p0_applied_p1_pending",
+    "p0_applied_at": "2026-11-20T15:32:00+08:00"
+  }
 }

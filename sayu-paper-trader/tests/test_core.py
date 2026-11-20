@@ -132,8 +132,22 @@ class PlanTests(unittest.TestCase):
         plan = validate_plan(self._plan())
         bad = {"macro_regime": "中性", "macro_note": "测试用宏观依据八字以上"}
         self.assertTrue(validate_buy(plan, bad))
-        good = dict(bad, plan_stop_pct=-0.06)
+        stop_only = dict(bad, plan_stop_pct=-0.06)
+        self.assertIn("止盈", validate_buy(plan, stop_only))
+        good = dict(bad, plan_stop_pct=-0.06, plan_take_pct=0.12)
         self.assertEqual(validate_buy(plan, good), "")
+
+    def test_buy_gate_normalizes_percent(self) -> None:
+        plan = validate_plan(self._plan())
+        snap = {
+            "macro_regime": "中性",
+            "macro_note": "测试用宏观依据八字以上",
+            "plan_stop_pct": -6,
+            "plan_take_pct": 12,
+        }
+        self.assertEqual(validate_buy(plan, snap), "")
+        self.assertTrue(validate_buy(plan, dict(snap, plan_stop_pct=-600)))
+        self.assertTrue(validate_buy(plan, dict(snap, plan_take_pct=600)))
 
     def test_defense_macro_gate(self) -> None:
         raw = self._plan()
@@ -144,7 +158,12 @@ class PlanTests(unittest.TestCase):
             "risk_off_titles": "测试事件",
         }
         plan = validate_plan(raw)
-        snap = {"macro_regime": "进攻", "macro_note": "测试用宏观依据八字以上", "plan_stop_pct": -0.06}
+        snap = {
+            "macro_regime": "进攻",
+            "macro_note": "测试用宏观依据八字以上",
+            "plan_stop_pct": -0.06,
+            "plan_take_pct": 0.12,
+        }
         self.assertIn("不得标 macro_regime=进攻", validate_buy(plan, snap))
 
 

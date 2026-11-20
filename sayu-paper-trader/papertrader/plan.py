@@ -2,7 +2,7 @@
 
 对应 SayuStock 的两层约束：
 1. 计划本身声明宏观档位、风险预算、候选池与每只票的 thesis；
-2. buy 落库前硬闸（``strategy.gate_buy``）：必须有数值止损 + 宏观档位 + 宏观依据；
+2. buy 落库前硬闸（``strategy.gate_buy``）：必须有数值止损 + 数值止盈 + 宏观档位 + 宏观依据；
    表内存在高危 risk_off 事件时，不许把 ``进攻`` 写进快照。
 
 这是"LLM 自主决策"的可审计替身：规则引擎只能在本计划允许的范围内行动。
@@ -103,6 +103,42 @@ def validate_plan(raw: dict) -> dict:
     return raw
 
 
+def normalize_stop_pct(raw: Any) -> float | None:
+    """把止损归一为 (-1, 0) 小数。-6 视为 -6%，返回 -0.06。"""
+    value = _num(raw)
+    if value is None or value >= 0:
+        return None
+    if -100.0 < value <= -1.0:
+        value = value / 100.0
+    if not (-1.0 < value < 0.0):
+        return None
+    return round(value, 6)
+
+
+def normalize_take_pct(raw: Any) -> float | None:
+    """把止盈归一为 (0, 5] 小数。12 视为 12%，返回 0.12。"""
+    value = _num(raw)
+    if value is None or value <= 0:
+        return None
+    if 1.0 <= value <= 500.0:
+        value = value / 100.0
+    if not (0.0 < value <= 5.0):
+        return None
+    return round(value, 6)
+
+
+def normalize_plan_fields(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """返回带归一化止损/止盈的副本；非法值保持原样，交给 validate_buy 拒绝。"""
+    out = dict(snapshot)
+    stop_pct = normalize_stop_pct(out.get("plan_stop_pct"))
+    if stop_pct is not None:
+        out["plan_stop_pct"] = stop_pct
+    take_pct = normalize_take_pct(out.get("plan_take_pct"))
+    if take_pct is not None:
+        out["plan_take_pct"] = take_pct
+    return out
+
+
 def macro_blocks(plan: dict, regime: str) -> str:
     """复刻宏观硬闸：高危 risk_off 进行中时，不许标"进攻"。"""
     macro = plan.get("macro") or {}
@@ -117,10 +153,20 @@ def macro_blocks(plan: dict, regime: str) -> str:
 
 def validate_buy(plan: dict, snapshot: dict[str, Any]) -> str:
     """buy 落库前硬闸。放行返回空串，拒绝返回中文理由。"""
-    stop_pct = _num(snapshot.get("plan_stop_pct"))
+    raw_stop_pct = snapshot.get("plan_stop_pct")
+    stop_pct = normalize_stop_pct(raw_stop_pct)
     stop_price = _num(snapshot.get("plan_stop_price"))
+    if raw_stop_pct is not None and stop_pct is None:
+        return "⚠️ plan_stop_pct 非法：必须是 (-1,0) 小数；-6 会按 -6% 归一为 -0.06；已拒绝落库"
     if not ((stop_pct is not None and stop_pct < 0) or (stop_price is not None and stop_price > 0)):
         return "⚠️ buy 须在 snapshot 写入 plan_stop_pct(<0) 或 plan_stop_price(>0)（数值止损）；已拒绝落库"
+    raw_take_pct = snapshot.get("plan_take_pct")
+    take_pct = normalize_take_pct(raw_take_pct)
+    take_price = _num(snapshot.get("plan_take_price"))
+    if raw_take_pct is not None and take_pct is None:
+        return "⚠️ plan_take_pct 非法：必须是 (0,5] 小数；12 会按 12% 归一为 0.12；已拒绝落库"
+    if not ((take_pct is not None and take_pct > 0) or (take_price is not None and take_price > 0)):
+        return "⚠️ 多因子盘 buy 须同时写入止盈 plan_take_pct(>0) 或 plan_take_price(>0)；已拒绝落库"
     regime = str(snapshot.get("macro_regime", "")).strip()
     if regime not in MACRO_REGIMES:
         return f"⚠️ buy 须写 macro_regime（{'/'.join(MACRO_REGIMES)} 之一）；已拒绝落库"

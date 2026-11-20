@@ -223,14 +223,15 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
 
         amount = qty * quote.price
         fee_bd = rules.calc_fee("buy", amount)
+        normalized = plan_mod.normalize_plan_fields(payload)
         snapshot = {
-            "plan_stop_pct": payload.get("plan_stop_pct"),
-            "plan_stop_price": payload.get("plan_stop_price"),
-            "plan_take_pct": payload.get("plan_take_pct"),
-            "plan_take_price": payload.get("plan_take_price"),
-            "plan_thesis": payload.get("plan_thesis", ""),
+            "plan_stop_pct": normalized.get("plan_stop_pct"),
+            "plan_stop_price": normalized.get("plan_stop_price"),
+            "plan_take_pct": normalized.get("plan_take_pct"),
+            "plan_take_price": normalized.get("plan_take_price"),
+            "plan_thesis": normalized.get("plan_thesis", ""),
             "macro_regime": regime,
-            "macro_note": payload.get("macro_note", ""),
+            "macro_note": normalized.get("macro_note", ""),
         }
         gate = plan_mod.validate_buy(plan, snapshot)
         if gate:
@@ -297,6 +298,10 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
             "position_before": int(position["qty"]) if position else 0,
             "position_after": (int(position["qty"]) if position else 0) + qty,
             "macro_regime": regime,
+            "plan_stop_pct": snapshot.get("plan_stop_pct"),
+            "plan_stop_price": snapshot.get("plan_stop_price"),
+            "plan_take_pct": snapshot.get("plan_take_pct"),
+            "plan_take_price": snapshot.get("plan_take_price"),
             "eff_total_pct": round(eff_total, 4),
             "eff_single_pct": round(eff_single, 4),
         }

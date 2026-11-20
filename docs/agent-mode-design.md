@@ -34,7 +34,7 @@
 关键边界：
 
 - **LLM 只提议，不直接写库。** 所有写操作都走 CLI。
-- **Python 硬闸是最终裁判。** 缺止损、越档、T+1、涨跌停、行业/仓位上限一律拒绝。
+- **Python 硬闸是最终裁判。** 缺止损/止盈、越档、T+1、涨跌停、行业/仓位上限一律拒绝。
 - **计划是合同。** Agent 可以在计划范围内交易；宏观档位可在阈值内自动切换（见 3.3）；改计划文件/仓位上限/止损仍需用户确认。
 - **无 QQ、无 gsuid_core。** DSH 定时任务只负责“叫醒模型”，交互仍在当前会话。
 
@@ -158,7 +158,7 @@
 1. 交易时段 / 交易日；
 2. 账户存在、计划 active；
 3. 代码在计划 universe / 持仓；
-4. 买入：plan_stop_pct < 0 或 plan_stop_price > 0；
+4. 买入：plan_stop_pct < 0 或 plan_stop_price > 0，且 plan_take_pct > 0 或 plan_take_price > 0；
 5. 买入：macro_regime 合法、macro_note ≥8 字、高危 risk_off 时不得标“进攻”；
 6. 涨跌停 / 实时价 / 100 股整手 / 费用；
 7. 单票上限、总仓上限、最大持仓数、同行业上限、单日交易数；
@@ -193,7 +193,7 @@
     1. 用 web_search / web_fetch 查今日宏观与持仓/候选相关新闻；
     2. 用 agent macro upsert 登记/更新进行中的宏观事件；
     3. 对候选逐一评估：宏观档位 → 技术 → 基本面 → 事件/舆情 → 仓位；
-    4. 买入必须带 plan_stop_pct 或 plan_stop_price、macro_regime、macro_note；
+    4. 买入必须带 plan_stop_pct/plan_stop_price、plan_take_pct/plan_take_price、macro_regime、macro_note；
     5. 通过 agent trade 提交；不动作通过 agent decision 写 hold；
     6. 被硬闸拒绝就改 hold，不要换措辞重试同一笔。
 
