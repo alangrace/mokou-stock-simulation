@@ -36,6 +36,17 @@ python3.12 -m papertrader.cli tick --account 默认模拟盘
 - 方案 A 设计（DSH 当 LLM 运行时）：[docs/agent-mode-design.md](docs/agent-mode-design.md)
 - 复刻实现：[sayu-paper-trader/](sayu-paper-trader/)
 
+## 发布监控页到 GitHub Pages
+
+仓库：[alangrace/mokou-stock-simulation](https://github.com/alangrace/mokou-stock-simulation)
+
+- docs/index.html：每日收盘快照，GitHub Pages 入口；
+- scripts/publish_dashboard.sh：生成 dashboard → 复制到 docs/index.html → commit → push；
+- 15:05 的收盘快照任务会在写快照后执行该脚本；
+- GitHub 仓库 Settings → Pages → Deploy from a branch → Branch main / folder /docs → Save。
+
+> ⚠️ 当前仓库是 public，dashboard 包含模拟盘现金、持仓、成交和决策理由；如果不想公开，请改成私有仓库并配置访问控制，或使用脱敏页面。
+
 ## 快速查看
 
 ```bash
