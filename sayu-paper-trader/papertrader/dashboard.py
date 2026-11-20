@@ -45,7 +45,7 @@ a { color: var(--accent); text-decoration: none; }
 .badge.on { color: var(--green); border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.08); }
 .badge.off { color: var(--red); border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.08); }
 .badge.warn { color: var(--amber); border-color: rgba(245,158,11,.45); background: rgba(245,158,11,.08); }
-.btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.btn { display: inline-block; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; text-decoration: none; }
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .card { background: linear-gradient(180deg, var(--panel), var(--panel-2)); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
@@ -337,13 +337,13 @@ def build(account_name: str, market=None) -> Path:
 <meta charset="utf-8">
 <meta http-equiv="refresh" content="30">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sayu 模拟盘监控 · {_esc(acc["name"])}</title>
+<title>Mokou 模拟盘监控 · {_esc(acc["name"])}</title>
 <style>{CSS}</style>
 </head>
 <body>
   <div class="header">
     <div>
-      <div class="title">Sayu 模拟盘监控</div>
+      <div class="title">Mokou 模拟盘监控</div>
       <div class="subtitle">
         {_esc(acc["name"])} · id={int(acc["id"])} · 策略 {_esc(acc["strategy"])}
         <span class="badge {session_class}">{_esc(session_text)}</span>
@@ -353,7 +353,7 @@ def build(account_name: str, market=None) -> Path:
     <div style="text-align:right">
       <div class="subtitle">数据时点 {_esc(data["as_of"])}</div>
       <div class="subtitle">页面生成 {_esc(generated)} · 每 30 秒自动刷新</div>
-      <button class="btn" onclick="location.reload()">立即刷新</button>
+      <a class="btn" href="" title="只重新加载当前 HTML；行情与账本由 papertrader tick 每 30 分钟重写">重新加载</a>
     </div>
   </div>
 

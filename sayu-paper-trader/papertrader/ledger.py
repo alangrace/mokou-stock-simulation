@@ -117,6 +117,50 @@ CREATE TABLE IF NOT EXISTS broadcast (
     text TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS macro_event (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    severity INTEGER NOT NULL DEFAULT 3,
+    direction TEXT NOT NULL DEFAULT 'mixed',
+    status TEXT NOT NULL DEFAULT 'open',
+    result TEXT NOT NULL DEFAULT '',
+    stance TEXT NOT NULL DEFAULT '',
+    stale INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS macro_snapshot (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    as_of TEXT NOT NULL,
+    regime TEXT NOT NULL DEFAULT '中性',
+    phase TEXT NOT NULL DEFAULT '平衡',
+    fed_prob_25bp REAL,
+    breadth_down TEXT NOT NULL DEFAULT '',
+    gold_pct REAL,
+    silver_pct REAL,
+    copper_pct REAL,
+    oil_pct REAL,
+    dollar REAL,
+    usdcnh REAL,
+    note TEXT NOT NULL DEFAULT '',
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_run (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER NOT NULL,
+    started_at TEXT NOT NULL,
+    model TEXT NOT NULL DEFAULT '',
+    prompt_hash TEXT NOT NULL DEFAULT '',
+    decision_json TEXT NOT NULL DEFAULT '{}',
+    token_in INTEGER NOT NULL DEFAULT 0,
+    token_out INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'ok'
+);
 """
 
 

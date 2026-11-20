@@ -19,7 +19,8 @@ import traceback
 from datetime import datetime, time as dtime, timedelta
 from pathlib import Path
 
-from . import dashboard, ledger, report
+from . import agent as agent_mod
+from . import dashboard, ledger, macro, proposal, report
 from .calendar import ensure_tz, session_state
 from .config import LOG_DIR, REPORT_DIR, TZ
 from .engine import run_once, write_daily_snapshot
@@ -206,6 +207,82 @@ def cmd_dashboard(args) -> int:
     return 0
 
 
+def _json_payload(args) -> dict:
+    raw = ""
+    if getattr(args, "file", ""):
+        raw = Path(args.file).read_text(encoding="utf-8")
+    elif getattr(args, "json", ""):
+        raw = args.json
+    if not raw:
+        raise SystemExit("需要 --json '<JSON>' 或 --file <path>")
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"JSON 解析失败: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise SystemExit("JSON 必须是对象")
+    return payload
+
+
+def cmd_agent_context(args) -> int:
+    context = agent_mod.build_context(args.account)
+    print(json.dumps(context, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_macro_list(args) -> int:
+    print(json.dumps(macro.list_events(status=args.status or None), ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_macro_upsert(args) -> int:
+    print(json.dumps(macro.upsert_event(_json_payload(args)), ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_macro_snapshot(args) -> int:
+    print(json.dumps(macro.save_snapshot(_json_payload(args)), ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_quote(args) -> int:
+    codes = [c.strip() for c in str(args.codes).split(",") if c.strip()]
+    from .engine import _quote_dict
+    from .market import MarketClient
+
+    quotes = MarketClient().batch_quotes(codes)
+    print(json.dumps({code: _quote_dict(q) for code, q in quotes.items()}, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_indicators(args) -> int:
+    from .indicators import compute
+    from .market import MarketClient
+
+    ind = compute(MarketClient().kline(args.code, 101, args.limit))
+    print(json.dumps(ind, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_trade(args) -> int:
+    if not args.dry_run:
+        raise SystemExit("P2 只允许 dry-run；实盘写入在 P3 开启，请加 --dry-run")
+    result = proposal.validate(args.account, _json_payload(args))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_decision(args) -> int:
+    result = proposal.log_decision(args.account, _json_payload(args))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_agent_runs(args) -> int:
+    print(json.dumps(macro.list_agent_runs(limit=args.limit), ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_tick(args) -> int:
     """定时任务专用：交易时段跑一轮；收盘后写快照；其余时段直接跳过。"""
     state = session_state()
@@ -317,6 +394,61 @@ def build_parser() -> argparse.ArgumentParser:
     dash = sub.add_parser("dashboard", help="生成可视化 HTML 仪表盘")
     dash.add_argument("--account", default="默认模拟盘")
     dash.set_defaults(func=cmd_dashboard)
+
+    agent_p = sub.add_parser("agent", help="Agent 模式：只读上下文 / 宏观事件")
+    agent_sub = agent_p.add_subparsers(dest="agent_cmd", required=True)
+
+    actx = agent_sub.add_parser("context", help="输出一轮决策所需的 JSON 上下文")
+    actx.add_argument("--account", default="默认模拟盘")
+    actx.add_argument("--json", action="store_true", help="兼容 Agent 调用的显式 JSON 标志")
+    actx.set_defaults(func=cmd_agent_context)
+
+    aquote = agent_sub.add_parser("quote", help="批量查询行情")
+    aquote.add_argument("--codes", required=True)
+    aquote.add_argument("--json", action="store_true")
+    aquote.set_defaults(func=cmd_agent_quote)
+
+    aind = agent_sub.add_parser("indicators", help="查询单只股票技术指标")
+    aind.add_argument("--code", required=True)
+    aind.add_argument("--limit", type=int, default=180)
+    aind.add_argument("--json", action="store_true")
+    aind.set_defaults(func=cmd_agent_indicators)
+
+    atrade = agent_sub.add_parser("trade", help="dry-run 校验一笔买/卖提议（不成交）")
+    atrade.add_argument("--account", default="默认模拟盘")
+    atrade.add_argument("--json", default="")
+    atrade.add_argument("--file", default="")
+    atrade.add_argument("--dry-run", action="store_true")
+    atrade.set_defaults(func=cmd_agent_trade)
+
+    adec = agent_sub.add_parser("decision", help="记录一条 Agent 决策（hold/信号，不成交）")
+    adec.add_argument("--account", default="默认模拟盘")
+    adec.add_argument("--json", default="")
+    adec.add_argument("--file", default="")
+    adec.set_defaults(func=cmd_agent_decision)
+
+    aruns = agent_sub.add_parser("runs", help="查看最近 Agent 提议/决策记录")
+    aruns.add_argument("--limit", type=int, default=20)
+    aruns.add_argument("--json", action="store_true")
+    aruns.set_defaults(func=cmd_agent_runs)
+
+    amacro = agent_sub.add_parser("macro", help="宏观事件表 / 快照")
+    amacro_sub = amacro.add_subparsers(dest="macro_cmd", required=True)
+
+    amlist = amacro_sub.add_parser("list", help="列出宏观事件")
+    amlist.add_argument("--status", default="")
+    amlist.add_argument("--json", action="store_true")
+    amlist.set_defaults(func=cmd_agent_macro_list)
+
+    amup = amacro_sub.add_parser("upsert", help="新增/更新一条宏观事件")
+    amup.add_argument("--json", default="")
+    amup.add_argument("--file", default="")
+    amup.set_defaults(func=cmd_agent_macro_upsert)
+
+    amsnap = amacro_sub.add_parser("snapshot", help="写一条宏观快照")
+    amsnap.add_argument("--json", default="")
+    amsnap.add_argument("--file", default="")
+    amsnap.set_defaults(func=cmd_agent_macro_snapshot)
 
     tick = sub.add_parser("tick", help="定时任务：交易时段跑一轮，收盘后写快照")
     tick.add_argument("--account", default="默认模拟盘")

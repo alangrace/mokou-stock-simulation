@@ -15,7 +15,7 @@ from datetime import date, datetime
 _TMP = tempfile.mkdtemp(prefix="sayu-paper-test-")
 os.environ["SAYU_PAPER_DB"] = os.path.join(_TMP, "test.db")
 
-from papertrader import ledger, rules  # noqa: E402
+from papertrader import ledger, macro, proposal, rules  # noqa: E402
 from papertrader.calendar import session_state  # noqa: E402
 from papertrader.config import TZ  # noqa: E402
 from papertrader.indicators import compute  # noqa: E402
@@ -242,6 +242,69 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(qty, 2500)
         self.assertAlmostEqual(budget, 50_000.0)
         self.assertEqual(note, "")
+
+
+class MacroTests(unittest.TestCase):
+    def setUp(self) -> None:
+        ledger.init_db()
+
+    def test_upsert_and_list_event(self) -> None:
+        event = macro.upsert_event(
+            {
+                "slug": "fed_dec_2026",
+                "title": "美联储12月加息预期",
+                "severity": 4,
+                "direction": "risk_off",
+                "status": "open",
+                "result": "CME定价25bp概率92%",
+                "stance": "压制成长/贵金属",
+            }
+        )
+        self.assertEqual(event["severity"], 4)
+        rows = macro.list_events(status="open")
+        self.assertTrue(any(r["slug"] == "fed_dec_2026" for r in rows))
+        updated = macro.upsert_event({"slug": "fed_dec_2026", "title": "更新", "severity": 5})
+        self.assertEqual(updated["title"], "更新")
+        self.assertEqual(updated["severity"], 5)
+
+    def test_invalid_severity(self) -> None:
+        with self.assertRaises(ValueError):
+            macro.upsert_event({"slug": "bad", "title": "bad", "severity": 9})
+
+    def test_snapshot(self) -> None:
+        snap = macro.save_snapshot(
+            {
+                "regime": "防御",
+                "phase": "价值相",
+                "fed_prob_25bp": 0.92,
+                "breadth_down": "超5300只下跌",
+                "gold_pct": -3.4,
+                "sources": ["https://example.com"],
+            }
+        )
+        self.assertEqual(snap["regime"], "防御")
+        latest = macro.latest_snapshot()
+        assert latest is not None
+        self.assertEqual(latest["fed_prob_25bp"], 0.92)
+
+
+class ProposalTests(unittest.TestCase):
+    def setUp(self) -> None:
+        ledger.init_db()
+        self.account = ledger.create_account(f"提案盘-{self._testMethodName}", cash=100_000)
+
+    def test_log_hold_decision(self) -> None:
+        result = proposal.log_decision(
+            self.account["name"],
+            {"action": "hold", "code": "600028", "score": 0.1, "reason": "测试持有"},
+        )
+        self.assertTrue(result["ok"])
+        runs = macro.list_agent_runs(limit=5)
+        self.assertTrue(any(r["status"] == "dry_run_hold" for r in runs))
+
+    def test_log_rejects_bad_action(self) -> None:
+        with self.assertRaises(ValueError):
+            proposal.log_decision(self.account["name"], {"action": "short"})
 
 
 if __name__ == "__main__":

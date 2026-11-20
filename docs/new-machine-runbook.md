@@ -131,11 +131,20 @@ python3.12 -m papertrader.cli plan-load --file plans/entry-20261118-defensive.js
 
 ### 6.1 DSH（DeepSeek Harness）
 
-用 DSH 的 schedule 建一个工作日 09:00–15:30、每 30 分钟的任务：
+用 DSH 的 schedule 建三条工作日任务：
 
-```
+```text
+# 心跳：09:00–14:30 每 30 分钟（09:00 会被 tick 判为开盘前跳过）
 DTSTART;TZID=Asia/Shanghai:20261120T090000
-RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14,15;BYMINUTE=0,30
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14;BYMINUTE=0,30
+
+# 14:45 收盘前最后扫描（仍在交易时段）
+DTSTART;TZID=Asia/Shanghai:20261120T144500
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=14;BYMINUTE=45
+
+# 15:05 收盘快照（tick 判定 post_close，只写快照）
+DTSTART;TZID=Asia/Shanghai:20261120T150500
+RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=15;BYMINUTE=5
 ```
 
 任务提示词直接写：
@@ -150,17 +159,19 @@ RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14,15;BYMINUTE=0,30
 ### 6.2 cron（macOS / Linux）
 
 ```cron
-# 工作日 09:00–11:30、13:00–15:00 每 30 分钟
+# 工作日 09:00–11:30、13:00–14:30 每 30 分钟
 0,30 9-11,13-14 * * 1-5 cd /绝对路径/mokou-stock-simulation/sayu-paper-trader && /usr/bin/env python3.12 -m papertrader.cli tick --account 默认模拟盘 >> logs/cron.log 2>&1
-# 15:30 收盘快照
-30 15 * * 1-5 cd /绝对路径/mokou-stock-simulation/sayu-paper-trader && /usr/bin/env python3.12 -m papertrader.cli tick --account 默认模拟盘 >> logs/cron.log 2>&1
+# 14:45 收盘前最后扫描
+45 14 * * 1-5 cd /绝对路径/mokou-stock-simulation/sayu-paper-trader && /usr/bin/env python3.12 -m papertrader.cli tick --account 默认模拟盘 >> logs/cron.log 2>&1
+# 15:05 收盘快照
+5 15 * * 1-5 cd /绝对路径/mokou-stock-simulation/sayu-paper-trader && /usr/bin/env python3.12 -m papertrader.cli tick --account 默认模拟盘 >> logs/cron.log 2>&1
 ```
 
 用绝对路径，cron 的 `PATH` 很短，`python3.12` 最好写成 `/usr/local/bin/python3.12` 或 `$(which python3.12)` 的真实路径。
 
 ### 6.3 Windows 任务计划程序
 
-「创建任务」→ 触发器：每周，周一至周五，09:00，**重复任务间隔 30 分钟、持续时间 7 小时**；操作：启动程序
+「创建任务」→ 三个触发器，均为每周一至周五：09:00 起**重复任务间隔 30 分钟、持续时间 5 小时 30 分钟**（到 14:30）；14:45；15:05。操作：启动程序
 
 ```
 程序：py
@@ -170,7 +181,7 @@ RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14,15;BYMINUTE=0,30
 
 ### 6.4 launchd（macOS，替代 cron）
 
-不想用 cron 的话，把下面存成 `~/Library/LaunchAgents/com.sayu.papertrader.tick.plist` 再 `launchctl load`。`StartCalendarInterval` 每 30 分钟一次不方便表达，推荐仍用 cron；要用 launchd 就写成 09:00 起每 1800 秒的 `StartInterval`，并在脚本里自己判断交易时段。
+不想用 cron 的话，把下面存成 `~/Library/LaunchAgents/com.sayu.papertrader.tick.plist` 再 `launchctl load`。`StartCalendarInterval` 每 30 分钟一次不方便表达，推荐仍用 cron；要用 launchd 就写成 09:00 起每 1800 秒的 `StartInterval`，并额外加 14:45、15:05 两个 `StartCalendarInterval`，脚本里自己判断交易时段。
 
 ## 7. 日常命令速查
 

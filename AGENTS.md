@@ -52,10 +52,10 @@ python3.12 -m papertrader.cli dashboard
 
    ```
    DTSTART;TZID=Asia/Shanghai:20261120T090000
-   RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14,15;BYMINUTE=0,30
+   RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=9,10,11,13,14;BYMINUTE=0,30
    ```
 
-   命令是 `python3.12 -m papertrader.cli tick --account 默认模拟盘`，工作目录 `sayu-paper-trader/`。
+   另加两条独立 schedule：工作日 **14:45 收盘前扫描**、**15:05 收盘快照**。命令是 `python3.12 -m papertrader.cli tick --account 默认模拟盘`，工作目录 `sayu-paper-trader/`。
 3. **每日定档**：仓库里的计划是 2026-11-18 的防御档样例。新机器换日运行前，先和用户确认当天的宏观档位与候选池，再 `plan-load` 新计划，不要套用旧计划直接成交。
 
 ## 常见故障（先看这里再看日志）

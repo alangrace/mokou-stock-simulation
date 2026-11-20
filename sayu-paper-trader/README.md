@@ -268,11 +268,31 @@ python3.12 -m papertrader.cli tick --account 默认模拟盘
 - 收盘后：写当日净值快照，刷新 dashboard；
 - 开盘前 / 午休 / 节假日：跳过，只刷新 dashboard。
 
-当前 DSH 任务：周一到周五 09:00–15:30 每 30 分钟（`BYHOUR=9,10,11,13,14,15` + `BYMINUTE=0,30`），首次 2026-11-19 09:30。09:00 与 15:30 的触发由 `tick` 自己判断为跳过/收盘快照。
+当前 DSH 任务：周一到周五 09:00–14:30 每 30 分钟（`BYHOUR=9,10,11,13,14` + `BYMINUTE=0,30`）；另加 14:45 收盘前扫描、15:05 收盘快照。09:00 的触发由 `tick` 自己判断为跳过。
 
 > 注意：DSH 定时任务只在 Harness 运行时投递；关机、睡眠或 Harness 未打开时会跳过/合并到最近一次。
 
-## 12. 上游周检
+## 12. Agent 模式（P2 dry-run）
+
+DSH 当 LLM 运行时，Python 只做执行/硬闸。
+
+```bash
+python3.12 -m papertrader.cli agent context --account 默认模拟盘
+python3.12 -m papertrader.cli agent macro list --status open
+python3.12 -m papertrader.cli agent macro upsert --json '{"slug":"...","title":"...","severity":4,"direction":"risk_off","status":"open"}'
+python3.12 -m papertrader.cli agent macro snapshot --json '{"regime":"防御","phase":"价值相","fed_prob_25bp":0.92}'
+python3.12 -m papertrader.cli agent quote --codes 600028,600887
+python3.12 -m papertrader.cli agent indicators --code 600028
+
+# P2 dry-run：只校验/记录，不成交
+python3.12 -m papertrader.cli agent trade --dry-run --json '{"action":"buy","code":"600900","qty":1000,"plan_stop_pct":-0.06,"plan_take_pct":0.12,"macro_regime":"防御","macro_note":"……","reason":"……"}'
+python3.12 -m papertrader.cli agent decision --json '{"action":"hold","code":"600028","score":0.2,"reason":"……"}'
+python3.12 -m papertrader.cli agent runs --limit 20
+```
+
+详细设计见 [docs/agent-mode-design.md](../docs/agent-mode-design.md)。P2 dry-run 已启动：2026-11-20 13:00 至 2026-11-23 15:00，2 个交易日，只写 `agent_run`，不成交。
+
+## 13. 上游周检
 
 每周一 09:00（Asia/Shanghai）检查一次 SayuStock 的模拟盘相关更新：
 
@@ -281,7 +301,7 @@ python3.12 -m papertrader.cli tick --account 默认模拟盘
 - 有相关新提交时，只输出 commit / 文件 / 变化 / 对本地复刻的影响摘要，**先等确认再改本地**；
 - 本地复刻不是原仓库分支，不能直接 merge，按摘要逐项同步。
 
-## 13. 安全
+## 14. 安全
 
 - 纯模拟盘，只写本地 SQLite，不接券商、不发真实委托。
 - 行情以东方财富为主，失败时回退腾讯快照/日 K；两者都不可达时拒绝成交，而不是按旧价成交。
