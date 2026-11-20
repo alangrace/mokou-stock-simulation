@@ -41,7 +41,7 @@ python3.12 -m papertrader.cli tick --account 默认模拟盘
 仓库：[alangrace/mokou-stock-simulation](https://github.com/alangrace/mokou-stock-simulation)
 
 - docs/index.html：每日收盘快照
-- GitHub Pages 入口:https://github.com/alangrace/mokou-stock-simulation/blob/main/docs/index.html；
+- GitHub Pages 入口: https://alangrace.github.io/mokou-stock-simulation
 - scripts/publish_dashboard.sh：生成 dashboard → 复制到 docs/index.html → commit → push；
 - 15:05 的收盘快照任务会在写快照后执行该脚本；
 
