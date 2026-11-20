@@ -144,6 +144,13 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
         regime = raw_regime if raw_regime in MACRO_CAPS else str(plan["macro"].get("regime", "中性"))
         if regime not in MACRO_CAPS:
             regime = "中性"
+    if action == "buy" and regime == "防御" and not bool(candidate.get("defensive", False)):
+        return _block(
+            account_id=account_id, payload=payload, code=code, name=quote.name,
+            side=action, quote=quote,
+            reason=f"宏观防御档只买高股息/公用/必需消费/上游资源；{candidate.get('name', quote.name)}不在计划防御名单",
+            blocked_by="macro_defensive_only",
+        )
     cap_total, cap_single = MACRO_CAPS[regime]
     eff_total = min(float(plan["risk"]["max_total_exposure_pct"]), cap_total)
     eff_single = min(float(plan["risk"]["max_single_pct"]), cap_single)
