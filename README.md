@@ -40,32 +40,9 @@ python3.12 -m papertrader.cli tick --account 默认模拟盘
 
 仓库：[alangrace/mokou-stock-simulation](https://github.com/alangrace/mokou-stock-simulation)
 
-- docs/index.html：每日收盘快照，GitHub Pages 入口；
+- docs/index.html：每日收盘快照
+- GitHub Pages 入口:https://github.com/alangrace/mokou-stock-simulation/blob/main/docs/index.html；
 - scripts/publish_dashboard.sh：生成 dashboard → 复制到 docs/index.html → commit → push；
 - 15:05 的收盘快照任务会在写快照后执行该脚本；
-- GitHub 仓库 Settings → Pages → Deploy from a branch → Branch main / folder /docs → Save。
-
-> ⚠️ 当前仓库是 public，dashboard 包含模拟盘现金、持仓、成交和决策理由；如果不想公开，请改成私有仓库并配置访问控制，或使用脱敏页面。
-
-## 快速查看
-
-```bash
-cd sayu-paper-trader
-python3.12 -m papertrader.cli status --account 默认模拟盘
-python3.12 -m papertrader.cli status --account 回放盘-20261118
-```
-
-## 本次运行
-
-- 2026-11-18 11:35：午休，上证 3570.21（-0.40%），指数位于 MA20/MA60 下方，计划定档「防御」。
-- 午休预览：挂起两笔计划买入（601166 兴业银行 2500 股 @19.99；601668 中国建筑 10500 股 @4.72），其余因行业上限/RSI 超买/防御名单/趋势未确认被拒。
-- 10:30 回放：成交 600036 招商银行 1100 股 @43.31、601668 中国建筑 10600 股 @4.71、600028 中国石化 8400 股 @5.92；现金 852,668.18，总资产 1,000,120.18（11:41 现价）。
-- 13:00 实盘执行：买入 601166 兴业银行 2500 股 @19.99、601668 中国建筑 10500 股 @4.72；13:10 无新成交；13:14:59 600887 伊利股份 RSI 回落到 75 以下，买入 1500 股 @32.33。
-- 13:15 盘中快照：现金 851,933.00，持仓市值 147,725.00，总资产 999,658.00，当日 -342.00（含手续费 37.00）。
-- 17:33 收盘快照：三只票尾盘回升，总资产 1,000,003.00，当日 +3.00。三只票受 T+1 约束，2026-11-19 开盘后才可卖。
-- 定时任务：DSH「运行模拟盘决策心跳」周一到周五 09:00–14:30 每 30 分钟；「收盘前扫描模拟盘」14:45；「写模拟盘收盘快照」15:05。`tick` 会自动跳过非交易时段。
-- 上游周检：DSH「检查 SayuStock 模拟盘策略更新」已创建，每周一 09:00，首次 2026-11-23；只报告、不自动改，确认后才同步。
-- 可视化：[reports/dashboard.html](sayu-paper-trader/reports/dashboard.html)（自包含页面，每 30 秒自动刷新）。
-- 成交通知：实时成交会自动弹 macOS 提示（terminal-notifier 被拒时回退右上角 Tkinter 浮层）；一轮多笔合并成一条，回放不弹。
 
 > 仅用于模拟盘/工程研究，不构成投资建议。
