@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from datetime import date, datetime, timedelta
 from types import SimpleNamespace
+from unittest import mock
 
 _TMP = tempfile.mkdtemp(prefix="sayu-paper-test-")
 os.environ["SAYU_PAPER_DB"] = os.path.join(_TMP, "test.db")
@@ -519,6 +520,76 @@ class PlanRevisionTests(unittest.TestCase):
             33.0, self.now,
         )
         self.assertTrue(result["ok"], result)
+
+    def _write_account(self) -> tuple[dict, dict]:
+        from papertrader.plan import validate_plan
+
+        name = f"P1B盘-{self._testMethodName}"
+        account = ledger.create_account(name, cash=100_000)
+        raw = {
+            "plan_id": f"p1b-{self._testMethodName}",
+            "name": "P1B测试计划",
+            "account": name,
+            "macro": {"regime": "中性", "note": "测试用宏观依据八字以上"},
+            "risk": {"max_total_exposure_pct": 0.6, "max_single_pct": 0.15,
+                     "max_positions": 8, "min_cash_pct": 0.1, "max_daily_trades": 12},
+            "entry": {"stop_pct": -0.06, "take_pct": 0.12},
+            "universe": [{"code": "600887", "name": "伊利股份", "thesis": "测试"}],
+        }
+        ledger.save_plan(account["id"], validate_plan(raw))
+        ledger.record_fill(
+            account_id=account["id"], code="600887", name="伊利股份", side="buy",
+            price=32.0, qty=1000, reason="测试",
+            snapshot={"plan_stop_price": 30.08, "plan_stop_pct": -0.06,
+                      "plan_take_price": 38.0, "plan_thesis": "测试"},
+            trade_date="2026-11-19", executed_at=datetime(2026, 11, 19, 10, 0, tzinfo=TZ),
+        )
+        return account, ledger.get_position(account["id"], "600887")
+
+    def test_apply_revision_writes_position_once(self) -> None:
+        account, position = self._write_account()
+        payload = {"code": "600887", "revision_type": "trail_stop",
+                   "plan_stop_price": 32.2, "reason": "浮盈超8%后上移止损保本"}
+        quote = SimpleNamespace(price=36.0)
+
+        class _M:
+            def quote(self, code: str):
+                return quote
+
+        cash_before = ledger.get_account(account["name"])["cash"]
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "1"}):
+            result = plan_revision.validate(
+                account["name"], payload, market=_M(), dry_run=False,
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+        self.assertTrue(result["ok"], result)
+        self.assertTrue(result["applied"])
+        updated = ledger.get_position(account["id"], "600887")
+        self.assertAlmostEqual(updated["plan_stop_price"], 32.2, places=3)
+        self.assertEqual(updated["plan_rev_count"], 1)
+        self.assertEqual(updated["qty"], position["qty"])
+        self.assertEqual(ledger.get_account(account["name"])["cash"], cash_before)
+
+    def test_apply_revision_respects_switch(self) -> None:
+        account, _ = self._write_account()
+        payload = {"code": "600887", "revision_type": "trail_stop",
+                   "plan_stop_price": 32.2, "reason": "浮盈超8%后上移止损保本"}
+        quote = SimpleNamespace(price=36.0)
+
+        class _M:
+            def quote(self, code: str):
+                return quote
+
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "0"}):
+            result = plan_revision.validate(
+                account["name"], payload, market=_M(), dry_run=False,
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blocked_by"], "agent_trading_disabled")
+        self.assertAlmostEqual(
+            ledger.get_position(account["id"], "600887")["plan_stop_price"], 30.08, places=3
+        )
 
     def test_macro_tighten(self) -> None:
         result = plan_revision.evaluate(

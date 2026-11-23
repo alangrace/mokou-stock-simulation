@@ -289,12 +289,15 @@ python3.12 -m papertrader.cli agent trade --dry-run --json '{"action":"buy","cod
 python3.12 -m papertrader.cli agent decision --json '{"action":"hold","code":"600028","score":0.2,"reason":"……"}'
 python3.12 -m papertrader.cli agent runs --limit 20
 
-# P1a：只校验计划修订，不写库
-python3.12 -m papertrader.cli agent plan-update --dry-run --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
-python3.12 -m papertrader.cli agent plan-update --dry-run --json '{"code":"600887","revision_type":"take_adjust","plan_take_price":38,"reason":"突破后上调","evidence":"放量站上MA20"}'
+# 计划修订：默认 dry-run，只有 --execute + SAYU_AGENT_TRADING=1 才会写 position
+python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
+python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revision_type":"take_adjust","plan_take_price":38,"reason":"突破后上调","evidence":"放量站上MA20"}'
+SAYU_AGENT_TRADING=1 python3.12 -m papertrader.cli agent plan-update --execute --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
 ```
 
-详细设计见 [docs/agent-mode-design.md](../docs/agent-mode-design.md)。P2 dry-run 已启动：2026-11-20 13:00 至 2026-11-23 15:00，2 个交易日，只写 `agent_run`，不成交。
+计划修订规则：`backfill` / `trail_stop` / `macro_tighten` / `take_adjust`；20 小时冷却、单次 ≥2% 台阶、止损只上移、不能高于现价、不能宽于模式硬止损、单次止盈上调 ≤20%，每次写入都会追加一条 hold 决策做审计。
+
+详细设计见 [docs/agent-mode-design.md](../docs/agent-mode-design.md)。P2 dry-run 已于 2026-11-23 结束，复盘见 [docs/p2-review.md](../docs/p2-review.md)。
 
 ## 13. 上游周检
 

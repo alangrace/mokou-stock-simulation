@@ -11,6 +11,7 @@ P1a 只返回校验结果并写 agent_run 审计，不修改 position。
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -227,7 +228,53 @@ def evaluate(
     }
 
 
-def validate(account_name: str, payload: dict, market: MarketClient | None = None, now: datetime | None = None) -> dict:
+def agent_trading_enabled() -> bool:
+    """P1b/P3 写库开关：默认关闭，需显式设置 SAYU_AGENT_TRADING=1。"""
+    return str(os.environ.get("SAYU_AGENT_TRADING", "0")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def apply_revision(account_id: int, position: dict, result: dict, note: str = "") -> dict:
+    """把 evaluate 通过的新计划写入 position，并写一条 hold 决策做审计。"""
+    new = result["new_plan"]
+    old = result["old_plan"]
+    updated = ledger.update_position_plan(
+        account_id,
+        str(position["code"]),
+        plan_stop_price=new["plan_stop_price"],
+        plan_stop_pct=new["plan_stop_pct"],
+        plan_take_price=new["plan_take_price"],
+        plan_thesis=new["plan_thesis"],
+        plan_updated_at=new["plan_updated_at"],
+        plan_rev_count=new["plan_rev_count"],
+    )
+    reason = (
+        f"计划修订[{result['revision_type']}] 止损 {old.get('plan_stop_price')} → {new['plan_stop_price']}，"
+        f"止盈 {old.get('plan_take_price')} → {new['plan_take_price']}｜原因：{note or '未填写'}"
+    )
+    decision_id = ledger.append_decision(
+        account_id=account_id,
+        code=str(position["code"]),
+        name=str(position.get("name") or ""),
+        action="hold",
+        score=0.0,
+        reason=reason,
+        snapshot={"old_plan": old, "new_plan": new, "revision_type": result["revision_type"]},
+        blocked_by="",
+    )
+    return {
+        "decision_id": decision_id,
+        "position": updated,
+        "applied": True,
+    }
+
+
+def validate(
+    account_name: str,
+    payload: dict,
+    market: MarketClient | None = None,
+    now: datetime | None = None,
+    dry_run: bool = True,
+) -> dict:
     account = ledger.get_account(account_name)
     if account is None:
         raise RuntimeError(f"账户不存在：{account_name}")
@@ -258,5 +305,26 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
         mode=str(account.get("mode", "balanced")),
     )
     status = "plan_dry_run_ok" if result["ok"] else "plan_dry_run_blocked"
+    if result["ok"] and dry_run is False:
+        if not agent_trading_enabled():
+            blocked = dict(result)
+            blocked["ok"] = False
+            blocked["blocked_by"] = "agent_trading_disabled"
+            blocked["reason"] = "SAYU_AGENT_TRADING 未开启，拒绝写入计划"
+            macro.log_agent_run(
+                int(account["id"]), decision={"proposal": payload, "result": blocked},
+                status="plan_write_blocked",
+            )
+            return blocked
+        applied = apply_revision(
+            int(account["id"]), position, result, note=str(payload.get("reason", "")).strip()
+        )
+        result = dict(result, dry_run=False, **applied)
+        macro.log_agent_run(
+            int(account["id"]),
+            decision={"proposal": payload, "result": result},
+            status="plan_applied",
+        )
+        return result
     macro.log_agent_run(int(account["id"]), decision={"proposal": payload, "result": result}, status=status)
     return result

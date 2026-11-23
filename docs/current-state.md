@@ -110,8 +110,8 @@
 - 2026-11-23 15:40 已完成「入场拦截对齐」：proposal.validate 现在调用 planner.entry_blockers，并把 min_score 从软警告改为硬拦截；新增 RSI 超限、评分不足两个测试。
 - 2026-11-23 15:40 已确认 P3 参数：单日 Agent 成交 3 笔、与规则 tick 共用 max_daily_trades（12）、不开影子账户。
 - 2026-11-23 15:40 已统一「带名称」：agent decision 会自动回填股票名称，engine 指标错误也带名称。
-- P1a 已完成；P1b（真正写计划）未开，P3 前不做。
-- 下一步顺序：P1b 计划写入 → P3 开写（agent trade --execute，默认关闭）。
+- P1b 已完成（2026-11-23 16:58）：agent plan-update 支持 --execute，但需 SAYU_AGENT_TRADING=1；写入只改计划字段并追加 hold 审计。
+- 下一步：P3 开写（agent trade --execute，默认关闭，单日 3 笔、与 tick 共用 12 笔）。
 - 自动切宏观档位未生效；P3 实现时按设计加防抖/高危约束。
 - 15:05 发布依赖 Harness 运行；要每天必推需加 launchd/cron。
 - 公开仓库隐私风险未处理；如不能接受，改私有/脱敏。

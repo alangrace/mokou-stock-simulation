@@ -270,6 +270,14 @@
 - 只审计、不写 position；真正写入留到 P1b/P3；
 - P3 切换复盘提醒定在 2026-11-23 15:30。
 
+**P1b 状态（2026-11-23 已完成）**
+
+- agent plan-update 默认仍为 dry-run；加 --execute 且 SAYU_AGENT_TRADING=1 才写 position；
+- 写入只改计划字段，不动股数/成本/现金，不产生流水；
+- 每次写入追加一条 hold 决策：旧计划 → 新计划、revision_type、原因；
+- 通道、冷却、台阶、方向约束与 P1a 完全一致，没有放宽；
+- 开关未开时返回 blocked_by=agent_trading_disabled，position 不变。
+
 **P3 小仓位开写**
 
 - 打开 agent trade 写库，限制单笔金额/单日次数；

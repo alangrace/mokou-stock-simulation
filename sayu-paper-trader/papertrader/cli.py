@@ -284,9 +284,13 @@ def cmd_agent_runs(args) -> int:
 
 
 def cmd_agent_plan_update(args) -> int:
-    if not args.dry_run:
-        raise SystemExit("P1a 只允许 dry-run；真正写入计划在 P1b/P3 开启，请加 --dry-run")
-    result = plan_revision.validate(args.account, _json_payload(args))
+    execute = bool(getattr(args, "execute", False)) and not bool(args.dry_run)
+    if execute and not plan_revision.agent_trading_enabled():
+        raise SystemExit(
+            "写计划需要显式开启：export SAYU_AGENT_TRADING=1；"
+            "不加 --execute 时默认只做 dry-run"
+        )
+    result = plan_revision.validate(args.account, _json_payload(args), dry_run=not execute)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -444,7 +448,8 @@ def build_parser() -> argparse.ArgumentParser:
     aplan.add_argument("--account", default="默认模拟盘")
     aplan.add_argument("--json", default="")
     aplan.add_argument("--file", default="")
-    aplan.add_argument("--dry-run", action="store_true")
+    aplan.add_argument("--dry-run", action="store_true", help="显式 dry-run（默认行为）")
+    aplan.add_argument("--execute", action="store_true", help="真正写入 position，需 SAYU_AGENT_TRADING=1")
     aplan.set_defaults(func=cmd_agent_plan_update)
 
     amacro = agent_sub.add_parser("macro", help="宏观事件表 / 快照")

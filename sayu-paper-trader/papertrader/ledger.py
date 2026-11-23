@@ -268,6 +268,39 @@ def get_position(account_id: int, code: str) -> dict | None:
         )
 
 
+def update_position_plan(
+    account_id: int,
+    code: str,
+    *,
+    plan_stop_price: float | None,
+    plan_stop_pct: float | None,
+    plan_take_price: float | None,
+    plan_thesis: str | None,
+    plan_updated_at: str,
+    plan_rev_count: int,
+) -> dict | None:
+    """只改持仓的计划字段，不动股数/成本/现金，不产生流水。"""
+    with tx() as conn:
+        row = conn.execute(
+            "SELECT * FROM position WHERE account_id = ? AND code = ?", (account_id, code)
+        ).fetchone()
+        if row is None:
+            raise RuntimeError(f"没有该持仓：{code}")
+        conn.execute(
+            "UPDATE position SET plan_stop_price = ?, plan_stop_pct = ?, plan_take_price = ?, "
+            "plan_thesis = ?, plan_updated_at = ?, plan_rev_count = ?, updated_at = ? "
+            "WHERE account_id = ? AND code = ?",
+            (
+                plan_stop_price, plan_stop_pct, plan_take_price, plan_thesis,
+                plan_updated_at, int(plan_rev_count), plan_updated_at, account_id, code,
+            ),
+        )
+        updated = conn.execute(
+            "SELECT * FROM position WHERE account_id = ? AND code = ?", (account_id, code)
+        ).fetchone()
+        return dict(updated) if updated else None
+
+
 def update_quote(account_id: int, code: str, price: float, at: str) -> None:
     with tx() as conn:
         conn.execute(
