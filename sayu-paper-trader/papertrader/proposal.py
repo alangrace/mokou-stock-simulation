@@ -251,13 +251,17 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
                 position_before=int(position["qty"]) if position else 0,
             )
         single_after = existing_value + amount
-        single_cap = equity * eff_single * float(candidate.get("weight", 1.0))
+        weight = float(candidate.get("weight", 1.0))
+        single_cap = equity * eff_single * weight
         if single_after > single_cap + 1e-6:
             return _block(
                 account_id=account_id, payload=payload, code=code, name=quote.name,
                 side=action, quote=quote, qty=qty, price=quote.price, amount=amount,
                 fee=fee_bd.total,
-                reason=f"单票超限：{single_after / equity:.1%} > {eff_single:.1%}",
+                reason=(
+                    f"单票超限：{single_after / equity:.1%} > {eff_single * weight:.1%}"
+                    f"（宏观上限 {eff_single:.1%} × 权重 {weight:.2f}）"
+                ),
                 blocked_by="single_exposure",
                 position_before=int(position["qty"]) if position else 0,
             )
