@@ -3,7 +3,7 @@
   "branch": "main",
   "last_seen_sha": "64db0c1492cc3257cb59e414b2c8fc8fcef19afa",
   "last_seen_date": "2026-11-17T20:14:12Z",
-  "last_checked_at": "2026-11-20T15:40:00+08:00",
+  "last_checked_at": "2026-11-23T09:02:00+08:00",
   "watch_paths": [
     "SayuStock/stock_papertrade",
     "SayuStock/stock_agent",
@@ -19,5 +19,10 @@
     "status": "p1a_applied_p1b_pending",
     "p0_applied_at": "2026-11-20T15:32:00+08:00",
     "p1a_applied_at": "2026-11-20T15:40:00+08:00"
+  },
+  "upstream_head": {
+    "sha": "e513b64d6d40a50820a69761e5eebf64496de7a5",
+    "date": "2026-11-19T09:28:25Z",
+    "checked_at": "2026-11-23T09:02:00+08:00"
   }
 }
