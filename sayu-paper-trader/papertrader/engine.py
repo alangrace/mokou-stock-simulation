@@ -246,7 +246,9 @@ def run_once(
             bars = _bars_for(market, code, when if replay else None, replay)
             indicators[code] = compute(bars)
         except (MarketError, ValueError) as exc:
-            result.errors.append(f"{code} 指标失败: {type(exc).__name__}: {exc}")
+            label = str(names.get(code) or "").strip()
+            prefix = f"{code} {label}" if label else code
+            result.errors.append(f"{prefix} 指标失败: {type(exc).__name__}: {exc}")
 
     today = when.date()
     day = today.isoformat()

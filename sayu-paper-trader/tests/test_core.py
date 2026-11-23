@@ -11,6 +11,7 @@ import os
 import tempfile
 import unittest
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 
 _TMP = tempfile.mkdtemp(prefix="sayu-paper-test-")
 os.environ["SAYU_PAPER_DB"] = os.path.join(_TMP, "test.db")
@@ -324,6 +325,120 @@ class ProposalTests(unittest.TestCase):
     def test_log_rejects_bad_action(self) -> None:
         with self.assertRaises(ValueError):
             proposal.log_decision(self.account["name"], {"action": "short"})
+
+    def _frozen_session(self, when: datetime):
+        from unittest import mock
+
+        fake = SimpleNamespace(
+            now=when,
+            trading_day=True,
+            is_open=True,
+            phase="morning",
+            label="上午盘",
+            next_open=None,
+        )
+        return mock.patch.object(proposal, "session_state", return_value=fake)
+
+    def _stub_market(self, ind: dict, price: float = 20.0):
+        q = SimpleNamespace(
+            code="600036",
+            name="招商银行",
+            price=price,
+            prev_close=price,
+            open=price,
+            high=price,
+            low=price,
+            change_pct=0.0,
+            volume=0.0,
+            amount=0.0,
+            turnover=None,
+            ts="2026-11-23 10:00:00",
+        )
+
+        class _M:
+            def quote(self, code: str):
+                return q
+
+            def batch_quotes(self, codes):
+                return {c: q for c in codes}
+
+            def kline(self, code: str, klt: int = 101, limit: int = 180):
+                return []
+
+        return _M(), ind
+
+    def test_buy_rejects_rsi_over_limit(self) -> None:
+        plan = {
+            "plan_id": "p-entry",
+            "name": "测试计划",
+            "account": self.account["name"],
+            "macro": {"regime": "中性", "note": "测试用宏观依据八字以上"},
+            "risk": {"max_total_exposure_pct": 0.6, "max_single_pct": 0.15,
+                     "max_positions": 8, "min_cash_pct": 0.1},
+            "entry": {"stop_pct": -0.06, "take_pct": 0.12, "require_above_ma20": True,
+                      "max_rsi6": 75, "min_rsi6": 30, "max_change_pct": 7, "min_score": 0.2},
+            "universe": [{"code": "600036", "name": "招商银行", "thesis": "测试"},
+                         {"code": "601166", "name": "兴业银行", "thesis": "测试"}],
+        }
+        from papertrader.plan import validate_plan
+
+        ledger.save_plan(self.account["id"], validate_plan(plan))
+        ind = {"above_ma20": True, "rsi6": 90.0, "ma5": 21, "ma10": 20, "ma20": 19,
+               "ma60": 18, "close": 20.0, "dif": 0.1, "dea": 0.05, "macd_bar": 0.05,
+               "macd_golden_cross_3d": False, "macd_death_cross_3d": False,
+               "pct_20d": 5.0, "pos_20d": 0.5}
+        market, _ = self._stub_market(ind)
+        from unittest import mock
+
+        import papertrader.indicators as ind_mod
+
+        with self._frozen_session(datetime(2026, 11, 23, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            result = proposal.validate(
+                self.account["name"],
+                {"action": "buy", "code": "600036", "qty": 1000,
+                 "plan_stop_pct": -0.06, "plan_take_pct": 0.12,
+                 "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上"},
+                market=market,
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blocked_by"], "entry_blockers")
+        self.assertIn("RSI6", result["reason"])
+
+    def test_buy_rejects_low_score(self) -> None:
+        plan = {
+            "plan_id": "p-score",
+            "name": "测试计划",
+            "account": self.account["name"],
+            "macro": {"regime": "中性", "note": "测试用宏观依据八字以上"},
+            "risk": {"max_total_exposure_pct": 0.6, "max_single_pct": 0.15,
+                     "max_positions": 8, "min_cash_pct": 0.1},
+            "entry": {"stop_pct": -0.06, "take_pct": 0.12, "require_above_ma20": True,
+                      "max_rsi6": 75, "min_rsi6": 30, "max_change_pct": 7, "min_score": 0.2},
+            "universe": [{"code": "600036", "name": "招商银行", "thesis": "测试"}],
+        }
+        from papertrader.plan import validate_plan
+
+        ledger.save_plan(self.account["id"], validate_plan(plan))
+        ind = {"above_ma20": True, "rsi6": 50.0, "ma5": 20, "ma10": 20, "ma20": 19,
+               "ma60": 18, "close": 20.0, "dif": 0.1, "dea": 0.05, "macd_bar": 0.05,
+               "macd_golden_cross_3d": False, "macd_death_cross_3d": False,
+               "pct_20d": 5.0, "pos_20d": 0.5}
+        market, _ = self._stub_market(ind)
+        from unittest import mock
+        import papertrader.indicators as ind_mod
+
+        with self._frozen_session(datetime(2026, 11, 23, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            result = proposal.validate(
+                self.account["name"],
+                {"action": "buy", "code": "600036", "qty": 1000,
+                 "plan_stop_pct": -0.06, "plan_take_pct": 0.12, "score": -0.5,
+                 "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上"},
+                market=market,
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blocked_by"], "score_below_threshold")
 
 
 class PlanRevisionTests(unittest.TestCase):

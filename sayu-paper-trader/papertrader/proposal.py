@@ -10,7 +10,7 @@ from typing import Any
 
 from . import ledger, macro, plan as plan_mod, planner, rules
 from .calendar import session_state
-from .engine import MACRO_CAPS
+from .engine import MACRO_CAPS, _quote_dict
 from .market import MarketClient, MarketError
 
 
@@ -144,6 +144,38 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
         regime = raw_regime if raw_regime in MACRO_CAPS else str(plan["macro"].get("regime", "中性"))
         if regime not in MACRO_CAPS:
             regime = "中性"
+    if action == "buy":
+        # 与规则引擎同源：先跑入场技术拦截，再做防御名单与评分校验
+        from .indicators import compute
+
+        try:
+            ind = compute(market.kline(code, 101, 180))
+        except MarketError as exc:
+            return _block(
+                account_id=account_id, payload=payload, code=code, name=quote.name,
+                side=action, quote=quote,
+                reason=f"K 线不可达，无法复核入场条件：{type(exc).__name__}: {exc}",
+                blocked_by="no_data",
+            )
+        blockers = planner.entry_blockers(plan, candidate, ind, _quote_dict(quote), held=code in held)
+        if blockers:
+            return _block(
+                account_id=account_id, payload=payload, code=code, name=quote.name,
+                side=action, quote=quote, reason="；".join(blockers), blocked_by="entry_blockers",
+            )
+        try:
+            score = float(payload.get("score"))
+        except (TypeError, ValueError):
+            # 未提供评分时按计划规则现算，避免默认 0 误伤
+            score, _score_reasons = planner.score_candidate(ind, _quote_dict(quote), candidate)
+        min_score = float(plan["entry"].get("min_score", 0.2))
+        if score < min_score:
+            return _block(
+                account_id=account_id, payload=payload, code=code, name=quote.name,
+                side=action, quote=quote,
+                reason=f"评分 {score:.2f} < 计划阈值 {min_score:.2f}",
+                blocked_by="score_below_threshold",
+            )
     if action == "buy" and regime == "防御" and not bool(candidate.get("defensive", False)):
         return _block(
             account_id=account_id, payload=payload, code=code, name=quote.name,
@@ -276,13 +308,6 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
                 position_before=int(position["qty"]) if position else 0,
             )
         warnings: list[str] = []
-        try:
-            score = float(payload.get("score", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            score = 0.0
-        min_score = float(plan["entry"].get("min_score", 0.2))
-        if score < min_score:
-            warnings.append(f"score {score:.2f} < 计划阈值 {min_score:.2f}（软约束，未拦截）")
         result = {
             "ok": True,
             "dry_run": True,
@@ -302,6 +327,7 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
             "position_before": int(position["qty"]) if position else 0,
             "position_after": (int(position["qty"]) if position else 0) + qty,
             "macro_regime": regime,
+            "score": round(score, 4),
             "plan_stop_pct": snapshot.get("plan_stop_pct"),
             "plan_stop_price": snapshot.get("plan_stop_price"),
             "plan_take_pct": snapshot.get("plan_take_pct"),
@@ -377,10 +403,34 @@ def log_decision(account_name: str, payload: dict) -> dict:
     action = str(payload.get("action", "")).strip().lower()
     if action not in ("hold", "buy", "sell"):
         raise ValueError("action 必须是 hold/buy/sell")
+    code = str(payload.get("code", "")).strip()
+    name = str(payload.get("name", "")).strip()
+    if code and not name:
+        # 名称缺失时用持仓或计划里的名称补齐，避免审计里只剩代码
+        position = ledger.get_position(int(account["id"]), code)
+        if position is not None:
+            name = str(position.get("name") or "")
+        if not name:
+            plan_record = ledger.get_plan(int(account["id"]))
+            universe = (plan_record or {}).get("payload", {}).get("universe", [])
+            name = next(
+                (str(item.get("name") or "") for item in universe if str(item.get("code")) == code),
+                "",
+            )
+    if code and name:
+        payload = dict(payload, code=code, name=name)
     status = "dry_run_hold" if action == "hold" else "dry_run_signal"
     run_id = macro.log_agent_run(
         int(account["id"]),
         decision={"decision": payload},
         status=status,
     )
-    return {"ok": True, "dry_run": True, "run_id": run_id, "status": status, "action": action}
+    return {
+        "ok": True,
+        "dry_run": True,
+        "run_id": run_id,
+        "status": status,
+        "action": action,
+        "code": code,
+        "name": name,
+    }
