@@ -75,6 +75,11 @@
 - 14:00/14:30：002415 在修复前曾 would-fill；14:37 补上防御名单硬闸后，002415 已被 macro_defensive_only 拒绝。
 - 重要修复（2026-11-20 14:37）：proposal.py 之前漏了“防御档只买 defensive=true”的硬闸；已补上。修复前的 002415 ok=true 记录是旧逻辑，不能当作有效提议。
 - 规则引擎的 14:30 决策已正确把 002415/600519 标为 macro_defensive_only。
+- **P2 已于 2026-11-23 15:00 结束**，完整复盘见 docs/p2-review.md：
+  - 129 条 agent_run：hold 100、blocked 20、ok 4；
+  - 拒绝原因：macro_defensive_only 9、sector_cap 6、total_exposure 2、single_exposure 1、not_enough_profit 1；
+  - 关键发现：dry-run 没执行 planner.entry_blockers 与 min_score，RSI6/MA20 超限也能过；
+  - 结论：切 P3 前必须先做「入场拦截对齐」。
 
 ## 6. GitHub 发布
 
@@ -101,7 +106,7 @@
 
 ## 9. 当前待办/边界
 
-- P2 到 2026-11-23 收盘结束，之后复盘：提议数量、拒绝原因、与规则引擎差异、token 成本。
+- P2 已完成并复盘（docs/p2-review.md）；下一步 P0.5「入场拦截对齐」→ P1b 计划写入 → P3 开写。
 - P1a 已完成；P1b（真正写计划）未开，P3 前不做。
 - P3 切换复盘提醒：2026-11-23 15:30（P2 收盘后），只复盘不自动切换。
 - P3 才开写；开写前确认单笔/单日上限、是否影子账户。
