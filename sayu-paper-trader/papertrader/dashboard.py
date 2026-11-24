@@ -199,11 +199,14 @@ def _trades_table(rows: list[dict]) -> str:
     for t in rows:
         side = "buy" if t["side"] == "buy" else "sell"
         side_text = "买入" if side == "buy" else "卖出"
+        source = str(t.get("source") or "rule")
+        source_text = "Agent" if source == "agent" else "规则"
         body.append(
             "<tr>"
             f'<td class="left">{_esc(t["executed_at"][5:19])}</td>'
             f'<td class="left"><span class="side {side}">{side_text}</span></td>'
             f'<td class="left">{_esc(t["name"])} ({_esc(t["code"])})</td>'
+            f'<td class="left">{source_text}</td>'
             f'<td>{int(t["qty"]):,}</td>'
             f'<td>{float(t["price"]):.3f}</td>'
             f'<td>{_money(float(t["amount"]))}</td>'
@@ -214,7 +217,8 @@ def _trades_table(rows: list[dict]) -> str:
         )
     return (
         '<div class="table-wrap"><table><thead><tr>'
-        '<th class="left">时间</th><th class="left">方向</th><th class="left">标的</th><th>股数</th>'
+        '<th class="left">时间</th><th class="left">方向</th><th class="left">标的</th>'
+        '<th class="left">来源</th><th>股数</th>'
         '<th>价格</th><th>金额</th><th>费用</th><th>已实现盈亏</th><th class="left">原因</th>'
         '</tr></thead><tbody>' + "".join(body) + "</tbody></table></div>"
     )

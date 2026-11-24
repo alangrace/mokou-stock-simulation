@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS trade (
     reason TEXT NOT NULL DEFAULT '',
     snapshot TEXT NOT NULL DEFAULT '',
     mode TEXT NOT NULL DEFAULT 'balanced',
+    source TEXT NOT NULL DEFAULT 'rule',
     decision_id INTEGER,
     executed_at TEXT NOT NULL,
     trade_date TEXT NOT NULL
@@ -189,6 +190,9 @@ def init_db() -> None:
             conn.execute("UPDATE position SET plan_updated_at = opened_at WHERE plan_updated_at IS NULL")
         if "plan_rev_count" not in cols:
             conn.execute("ALTER TABLE position ADD COLUMN plan_rev_count INTEGER NOT NULL DEFAULT 0")
+        trade_cols = {row["name"] for row in conn.execute("PRAGMA table_info(trade)")}
+        if "source" not in trade_cols:
+            conn.execute("ALTER TABLE trade ADD COLUMN source TEXT NOT NULL DEFAULT 'rule'")
 
 
 @contextmanager
@@ -322,9 +326,20 @@ def buys_today(account_id: int, day: str) -> list[tuple[str, int]]:
 
 
 def daily_trade_count(account_id: int, day: str) -> int:
+    """当日总成交笔数（规则 + Agent 共用）。"""
     with connect() as conn:
         row = conn.execute(
             "SELECT COUNT(*) AS n FROM trade WHERE account_id = ? AND trade_date = ?",
+            (account_id, day),
+        ).fetchone()
+    return int(row["n"]) if row else 0
+
+
+def daily_agent_trade_count(account_id: int, day: str) -> int:
+    """当日 Agent 来源成交笔数，用于 Agent 独立配额。"""
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM trade WHERE account_id = ? AND trade_date = ? AND source = 'agent'",
             (account_id, day),
         ).fetchone()
     return int(row["n"]) if row else 0
@@ -342,10 +357,14 @@ def record_fill(
     snapshot: dict | None = None,
     decision_id: int | None = None,
     mode: str = "balanced",
+    source: str = "rule",
     executed_at: datetime | None = None,
     trade_date: str | None = None,
 ) -> dict:
-    """原子成交：写流水 + 改现金 + 改持仓。返回 trade_id / 成交后持仓 / 现金。"""
+    """原子成交：写流水 + 改现金 + 改持仓。返回 trade_id / 成交后持仓 / 现金。
+
+    source: rule=规则引擎 tick，agent=Agent 提议成交；两者共用同一张流水和单日计数。
+    """
     if side not in ("buy", "sell"):
         raise ValueError(f"非法方向: {side!r}")
     if price <= 0 or qty <= 0:
@@ -390,11 +409,11 @@ def record_fill(
         )
         conn.execute(
             "INSERT INTO trade(account_id, code, name, side, price, qty, amount, fee, realized_pnl, "
-            "reason, snapshot, mode, decision_id, executed_at, trade_date) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "reason, snapshot, mode, source, decision_id, executed_at, trade_date) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 account_id, code, name, side, price, qty, amount, fee, pnl,
-                reason, json.dumps(snapshot or {}, ensure_ascii=False), mode,
+                reason, json.dumps(snapshot or {}, ensure_ascii=False), mode, source,
                 decision_id, executed.isoformat(timespec="seconds"), day,
             ),
         )
@@ -460,6 +479,7 @@ def record_fill(
         "cash_after": round(cash_after, 2),
         "trade_date": day,
         "executed_at": executed.isoformat(timespec="seconds"),
+        "source": source,
     }
 
 

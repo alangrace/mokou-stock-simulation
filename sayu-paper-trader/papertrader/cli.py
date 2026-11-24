@@ -265,9 +265,13 @@ def cmd_agent_indicators(args) -> int:
 
 
 def cmd_agent_trade(args) -> int:
-    if not args.dry_run:
-        raise SystemExit("P2 只允许 dry-run；实盘写入在 P3 开启，请加 --dry-run")
-    result = proposal.validate(args.account, _json_payload(args))
+    execute = bool(getattr(args, "execute", False)) and not bool(args.dry_run)
+    if execute and not proposal.agent_trading_enabled():
+        raise SystemExit(
+            "Agent 下单需要显式开启：export SAYU_AGENT_TRADING=1；"
+            "不加 --execute 时默认只做 dry-run"
+        )
+    result = proposal.validate(args.account, _json_payload(args), execute=execute)
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
@@ -430,7 +434,8 @@ def build_parser() -> argparse.ArgumentParser:
     atrade.add_argument("--account", default="默认模拟盘")
     atrade.add_argument("--json", default="")
     atrade.add_argument("--file", default="")
-    atrade.add_argument("--dry-run", action="store_true")
+    atrade.add_argument("--dry-run", action="store_true", help="显式 dry-run（默认行为）")
+    atrade.add_argument("--execute", action="store_true", help="真正成交，需 SAYU_AGENT_TRADING=1")
     atrade.set_defaults(func=cmd_agent_trade)
 
     adec = agent_sub.add_parser("decision", help="记录一条 Agent 决策（hold/信号，不成交）")

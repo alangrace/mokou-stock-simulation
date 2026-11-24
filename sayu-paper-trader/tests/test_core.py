@@ -406,6 +406,131 @@ class ProposalTests(unittest.TestCase):
         self.assertEqual(result["blocked_by"], "entry_blockers")
         self.assertIn("RSI6", result["reason"])
 
+    def _agent_env(self, when: datetime):
+        fake = SimpleNamespace(
+            now=when, trading_day=True, is_open=True, phase="morning",
+            label="上午盘", next_open=None,
+        )
+        return mock.patch.object(proposal, "session_state", return_value=fake)
+
+    def _agent_plan(self, name: str, codes: list[tuple[str, str]], max_daily: int = 12) -> None:
+        from papertrader.plan import validate_plan
+
+        raw = {
+            "plan_id": f"p3-{self._testMethodName}",
+            "name": "P3测试计划",
+            "account": name,
+            "macro": {"regime": "中性", "note": "测试用宏观依据八字以上"},
+            "risk": {"max_total_exposure_pct": 0.6, "max_single_pct": 0.15,
+                     "max_positions": 8, "min_cash_pct": 0.1, "max_daily_trades": max_daily},
+            "entry": {"stop_pct": -0.06, "take_pct": 0.12},
+            "universe": [{"code": c, "name": n, "thesis": "测试"} for c, n in codes],
+        }
+        account = ledger.create_account(name, cash=1_000_000)
+        ledger.save_plan(account["id"], validate_plan(raw))
+        return account
+
+    def _ind_ok(self) -> dict:
+        return {"above_ma20": True, "rsi6": 50.0, "ma5": 44, "ma10": 43, "ma20": 42,
+                "ma60": 40, "close": 43.0, "dif": 0.5, "dea": 0.4, "macd_bar": 0.1,
+                "macd_golden_cross_3d": False, "macd_death_cross_3d": False,
+                "pct_20d": 5.0, "pos_20d": 0.5}
+
+    def test_execute_requires_switch(self) -> None:
+        account = self._agent_plan(f"P3开关盘-{self._testMethodName}", [("600036", "招商银行")])
+        payload = {"action": "buy", "code": "600036", "qty": 1000,
+                   "plan_stop_pct": -0.06, "plan_take_pct": 0.12,
+                   "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上",
+                   "reason": "开关测试", "score": 0.5}
+        ind = self._ind_ok()
+        market, _ = self._stub_market(ind)
+        import papertrader.indicators as ind_mod
+
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "0"}), \
+             self._agent_env(datetime(2026, 11, 24, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            result = proposal.validate(account["name"], payload, market=market, execute=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blocked_by"], "agent_trading_disabled")
+        self.assertEqual(ledger.recent_trades(account["id"], 10), [])
+
+    def test_execute_writes_agent_trade(self) -> None:
+        account = self._agent_plan(f"P3成交盘-{self._testMethodName}", [("600036", "招商银行")])
+        payload = {"action": "buy", "code": "600036", "qty": 1000,
+                   "plan_stop_pct": -0.06, "plan_take_pct": 0.12,
+                   "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上",
+                   "reason": "成交测试", "score": 0.5}
+        ind = self._ind_ok()
+        market, _ = self._stub_market(ind)
+        import papertrader.indicators as ind_mod
+
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "1"}), \
+             self._agent_env(datetime(2026, 11, 24, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            result = proposal.validate(account["name"], payload, market=market, execute=True)
+        self.assertTrue(result["ok"], result)
+        self.assertFalse(result["dry_run"])
+        trades = ledger.recent_trades(account["id"], 10)
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(trades[0]["source"], "agent")
+        self.assertEqual(trades[0]["name"], "招商银行")
+        position = ledger.get_position(account["id"], "600036")
+        price = float(trades[0]["price"])
+        self.assertAlmostEqual(position["plan_stop_price"], price * 0.94, places=2)
+        self.assertAlmostEqual(position["plan_take_price"], price * 1.12, places=2)
+
+    def test_agent_daily_quota(self) -> None:
+        codes = [("600036", "招商银行"), ("601166", "兴业银行"),
+                 ("600028", "中国石化"), ("600887", "伊利股份")]
+        account = self._agent_plan(f"P3配额盘-{self._testMethodName}", codes)
+        ind = self._ind_ok()
+        market, _ = self._stub_market(ind)
+        import papertrader.indicators as ind_mod
+
+        results = []
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "1"}), \
+             self._agent_env(datetime(2026, 11, 24, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            for code, _name in codes:
+                payload = {"action": "buy", "code": code, "qty": 1000,
+                           "plan_stop_pct": -0.06, "plan_take_pct": 0.12,
+                           "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上",
+                           "reason": "配额测试", "score": 0.5}
+                results.append(proposal.validate(account["name"], payload, market=market, execute=True))
+        self.assertEqual([r["ok"] for r in results], [True, True, True, False])
+        self.assertEqual(results[3]["blocked_by"], "agent_daily_quota")
+        self.assertEqual(ledger.daily_agent_trade_count(account["id"], "2026-11-24"), 3)
+
+    def test_shared_daily_cap(self) -> None:
+        account = self._agent_plan(
+            f"P3共享计数盘-{self._testMethodName}",
+            [("600036", "招商银行"), ("601166", "兴业银行")],
+            max_daily=2,
+        )
+        for code, name in [("600036", "招商银行"), ("601166", "兴业银行")]:
+            ledger.record_fill(
+                account_id=account["id"], code=code, name=name, side="buy",
+                price=43.0, qty=1000, reason="规则成交",
+                snapshot={"plan_stop_price": 40.42, "plan_stop_pct": -0.06,
+                          "plan_take_price": 48.16, "plan_thesis": "测试"},
+                source="rule", executed_at=datetime(2026, 11, 24, 9, 35, tzinfo=TZ),
+                trade_date="2026-11-24",
+            )
+        ind = self._ind_ok()
+        market, _ = self._stub_market(ind)
+        import papertrader.indicators as ind_mod
+
+        payload = {"action": "buy", "code": "600036", "qty": 1000,
+                   "plan_stop_pct": -0.06, "plan_take_pct": 0.12,
+                   "macro_regime": "中性", "macro_note": "测试用宏观依据八字以上",
+                   "reason": "共享计数", "score": 0.5, "allow_add": True}
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "1"}), \
+             self._agent_env(datetime(2026, 11, 24, 10, 0, tzinfo=TZ)), \
+             mock.patch.object(ind_mod, "compute", return_value=ind):
+            result = proposal.validate(account["name"], payload, market=market, execute=True)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["blocked_by"], "max_daily_trades")
+
     def test_buy_rejects_low_score(self) -> None:
         plan = {
             "plan_id": "p-score",

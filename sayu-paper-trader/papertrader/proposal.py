@@ -1,17 +1,64 @@
-"""Agent 提议校验（P2 dry-run）。
+"""Agent 提议校验（P2 dry-run / P3 受控执行）。
 
-只读：不写 trade / position / cash / decision；只把提议写入 agent_run 审计。
+默认只读：不写 trade / position / cash；只把提议写入 agent_run 审计。
+加 execute=True 且 SAYU_AGENT_TRADING=1 时，才按 P3 限额真正成交：
+
+- 单日 Agent 成交 ≤ 3 笔；
+- 与规则 tick 共用计划里的 max_daily_trades（默认 12）；
+- 单日 Agent 成交金额 ≤ 10% 权益；
+- 当日回撤 ≥ 2% 时自动停用 Agent 成交。
 """
 
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from . import ledger, macro, plan as plan_mod, planner, rules
 from .calendar import session_state
 from .engine import MACRO_CAPS, _quote_dict
 from .market import MarketClient, MarketError
+
+AGENT_MAX_DAILY_TRADES = 3
+AGENT_MAX_DAILY_NOTIONAL_PCT = 0.10
+AGENT_MAX_DAILY_DRAWDOWN_PCT = 0.02
+
+
+def agent_trading_enabled() -> bool:
+    """P3 写库开关：默认关闭，需显式设置 SAYU_AGENT_TRADING=1。"""
+    return str(os.environ.get("SAYU_AGENT_TRADING", "0")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _agent_limits(
+    account_id: int,
+    account: dict,
+    plan: dict,
+    equity: float,
+    day: str,
+) -> tuple[str, str]:
+    """Agent 独立限额检查；返回 (blocked_by, 理由)，放行返回 ("", "")。"""
+    used = ledger.daily_agent_trade_count(account_id, day)
+    if used >= AGENT_MAX_DAILY_TRADES:
+        return "agent_daily_quota", f"Agent 今日已成交 {used}/{AGENT_MAX_DAILY_TRADES} 笔"
+    notional = sum(
+        float(t["amount"])
+        for t in ledger.recent_trades(account_id, 200)
+        if str(t.get("trade_date")) == day and str(t.get("source") or "rule") == "agent"
+    )
+    if equity > 0 and notional >= equity * AGENT_MAX_DAILY_NOTIONAL_PCT:
+        return (
+            "agent_daily_notional",
+            f"Agent 今日成交金额 {notional:.0f} 已达权益 {AGENT_MAX_DAILY_NOTIONAL_PCT:.0%} 上限",
+        )
+    baseline = float(account.get("initial_cash") or 0.0)
+    if baseline > 0 and equity < baseline * (1 - AGENT_MAX_DAILY_DRAWDOWN_PCT):
+        return (
+            "agent_drawdown_kill",
+            f"账户权益 {equity:.0f} 低于初始 {baseline:.0f} 的 "
+            f"{(1 - AGENT_MAX_DAILY_DRAWDOWN_PCT):.0%}，Agent 成交已停用",
+        )
+    return "", ""
 
 
 def _money(value: float | None) -> float:
@@ -80,7 +127,12 @@ def _equity_and_quotes(
     return equity, position_value, quotes
 
 
-def validate(account_name: str, payload: dict, market: MarketClient | None = None) -> dict:
+def validate(
+    account_name: str,
+    payload: dict,
+    market: MarketClient | None = None,
+    execute: bool = False,
+) -> dict:
     account = ledger.get_account(account_name)
     if account is None:
         raise RuntimeError(f"账户不存在：{account_name}")
@@ -157,7 +209,10 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
                 reason=f"K 线不可达，无法复核入场条件：{type(exc).__name__}: {exc}",
                 blocked_by="no_data",
             )
-        blockers = planner.entry_blockers(plan, candidate, ind, _quote_dict(quote), held=code in held)
+        allow_add = bool(payload.get("allow_add", False))
+        blockers = planner.entry_blockers(
+            plan, candidate, ind, _quote_dict(quote), held=(code in held) and not allow_add
+        )
         if blockers:
             return _block(
                 account_id=account_id, payload=payload, code=code, name=quote.name,
@@ -205,9 +260,18 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
     if daily_count >= max_daily:
         return _block(
             account_id=account_id, payload=payload, code=code, name=quote.name,
-            side=action, quote=quote, reason=f"已达单日交易上限 {daily_count}/{max_daily}",
+            side=action, quote=quote,
+            reason=f"已达单日交易上限 {daily_count}/{max_daily}（规则与 Agent 共用）",
             blocked_by="max_daily_trades",
         )
+
+    if action == "buy":
+        agent_blocked, agent_reason = _agent_limits(account_id, account, plan, equity, day)
+        if agent_blocked:
+            return _block(
+                account_id=account_id, payload=payload, code=code, name=quote.name,
+                side=action, quote=quote, reason=agent_reason, blocked_by=agent_blocked,
+            )
 
     try:
         qty = int(payload.get("qty", 0) or 0)
@@ -256,11 +320,20 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
         amount = qty * quote.price
         fee_bd = rules.calc_fee("buy", amount)
         normalized = plan_mod.normalize_plan_fields(payload)
+        stop_pct_val = normalized.get("plan_stop_pct")
+        take_pct_val = normalized.get("plan_take_pct")
+        stop_price_val = normalized.get("plan_stop_price")
+        take_price_val = normalized.get("plan_take_price")
+        # 只给幅度时按成交价折算成价格，确保退出检查（止损价/止盈价）能生效
+        if stop_price_val is None and stop_pct_val is not None:
+            stop_price_val = round(quote.price * (1 + float(stop_pct_val)), 3)
+        if take_price_val is None and take_pct_val is not None:
+            take_price_val = round(quote.price * (1 + float(take_pct_val)), 3)
         snapshot = {
-            "plan_stop_pct": normalized.get("plan_stop_pct"),
-            "plan_stop_price": normalized.get("plan_stop_price"),
-            "plan_take_pct": normalized.get("plan_take_pct"),
-            "plan_take_price": normalized.get("plan_take_price"),
+            "plan_stop_pct": stop_pct_val,
+            "plan_stop_price": stop_price_val,
+            "plan_take_pct": take_pct_val,
+            "plan_take_price": take_price_val,
             "plan_thesis": normalized.get("plan_thesis", ""),
             "macro_regime": regime,
             "macro_note": normalized.get("macro_note", ""),
@@ -335,7 +408,52 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
             "eff_total_pct": round(eff_total, 4),
             "eff_single_pct": round(eff_single, 4),
         }
-        macro.log_agent_run(account_id, decision={"proposal": payload, "result": result}, status="dry_run_ok")
+        if not execute:
+            macro.log_agent_run(
+                account_id, decision={"proposal": payload, "result": result}, status="dry_run_ok"
+            )
+            return result
+        if not agent_trading_enabled():
+            blocked = dict(result)
+            blocked["ok"] = False
+            blocked["blocked_by"] = "agent_trading_disabled"
+            blocked["reason"] = "SAYU_AGENT_TRADING 未开启，拒绝下单"
+            macro.log_agent_run(
+                account_id, decision={"proposal": payload, "result": blocked},
+                status="agent_trade_blocked",
+            )
+            return blocked
+        try:
+            fill = ledger.record_fill(
+                account_id=account_id, code=code, name=quote.name, side="buy",
+                price=float(quote.price), qty=qty,
+                reason=f"Agent 买入：{payload.get('reason', '')}",
+                snapshot=snapshot, mode=str(account.get("mode", "balanced")), source="agent",
+                executed_at=session.now, trade_date=day,
+            )
+        except (ValueError, RuntimeError) as exc:
+            blocked = dict(result)
+            blocked["ok"] = False
+            blocked["blocked_by"] = "fill_rejected"
+            blocked["reason"] = f"成交被拒：{exc}"
+            macro.log_agent_run(
+                account_id, decision={"proposal": payload, "result": blocked},
+                status="agent_trade_blocked",
+            )
+            return blocked
+        result.update(
+            {
+                "dry_run": False,
+                "trade_id": fill["trade_id"],
+                "source": "agent",
+                "position_after": fill["position_qty"],
+                "cash_after": fill["cash_after"],
+                "reason": f"买入 {qty} 股 @{fill['price']:.3f}（Agent 成交）",
+            }
+        )
+        macro.log_agent_run(
+            account_id, decision={"proposal": payload, "result": result}, status="agent_trade_ok"
+        )
         return result
 
     # sell
@@ -392,7 +510,53 @@ def validate(account_name: str, payload: dict, market: MarketClient | None = Non
         "eff_total_pct": round(eff_total, 4),
         "eff_single_pct": round(eff_single, 4),
     }
-    macro.log_agent_run(account_id, decision={"proposal": payload, "result": result}, status="dry_run_ok")
+    if not execute:
+        macro.log_agent_run(
+            account_id, decision={"proposal": payload, "result": result}, status="dry_run_ok"
+        )
+        return result
+    if not agent_trading_enabled():
+        blocked = dict(result)
+        blocked["ok"] = False
+        blocked["blocked_by"] = "agent_trading_disabled"
+        blocked["reason"] = "SAYU_AGENT_TRADING 未开启，拒绝下单"
+        macro.log_agent_run(
+            account_id, decision={"proposal": payload, "result": blocked},
+            status="agent_trade_blocked",
+        )
+        return blocked
+    try:
+        fill = ledger.record_fill(
+            account_id=account_id, code=code, name=quote.name, side="sell",
+            price=float(quote.price), qty=qty,
+            reason=f"Agent 卖出：{payload.get('reason', '')}",
+            snapshot={}, mode=str(account.get("mode", "balanced")), source="agent",
+            executed_at=session.now, trade_date=day,
+        )
+    except (ValueError, RuntimeError) as exc:
+        blocked = dict(result)
+        blocked["ok"] = False
+        blocked["blocked_by"] = "fill_rejected"
+        blocked["reason"] = f"成交被拒：{exc}"
+        macro.log_agent_run(
+            account_id, decision={"proposal": payload, "result": blocked},
+            status="agent_trade_blocked",
+        )
+        return blocked
+    result.update(
+        {
+            "dry_run": False,
+            "trade_id": fill["trade_id"],
+            "source": "agent",
+            "position_after": fill["position_qty"],
+            "cash_after": fill["cash_after"],
+            "realized_pnl": fill["realized_pnl"],
+            "reason": f"卖出 {qty} 股 @{fill['price']:.3f}（Agent 成交）",
+        }
+    )
+    macro.log_agent_run(
+        account_id, decision={"proposal": payload, "result": result}, status="agent_trade_ok"
+    )
     return result
 
 

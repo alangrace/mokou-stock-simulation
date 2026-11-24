@@ -278,9 +278,12 @@
 - 通道、冷却、台阶、方向约束与 P1a 完全一致，没有放宽；
 - 开关未开时返回 blocked_by=agent_trading_disabled，position 不变。
 
-**P3 小仓位开写**
+**P3 小仓位开写（2026-11-24 已完成）**
 
-- 打开 agent trade 写库，限制单笔金额/单日次数；
+- agent trade --execute 可写库，但需 SAYU_AGENT_TRADING=1，默认关闭；
+- 单日 Agent 成交 3 笔，与规则 tick 共用 max_daily_trades（12）；
+- 单日 Agent 成交金额 ≤ 10% 权益；权益跌破初始 98% 时自动停用；
+- 流水增加 source 字段（rule / agent），dashboard 成交表显示来源；
 - 保留 tick 作为 fallback；
 - 监控 1~2 周：成交质量、回撤、拒绝原因、token 成本。
 

@@ -111,7 +111,8 @@
 - 2026-11-23 15:40 已确认 P3 参数：单日 Agent 成交 3 笔、与规则 tick 共用 max_daily_trades（12）、不开影子账户。
 - 2026-11-23 15:40 已统一「带名称」：agent decision 会自动回填股票名称，engine 指标错误也带名称。
 - P1b 已完成（2026-11-23 16:58）：agent plan-update 支持 --execute，但需 SAYU_AGENT_TRADING=1；写入只改计划字段并追加 hold 审计。
-- 下一步：P3 开写（agent trade --execute，默认关闭，单日 3 笔、与 tick 共用 12 笔）。
+- P3 已完成（2026-11-24 09:10）：agent trade --execute 可写库，需 SAYU_AGENT_TRADING=1；单日 Agent 3 笔、与 tick 共用 max_daily_trades、单日 Agent 金额 ≤10% 权益、回撤 2% 熔断；trade 表新增 source 字段并在 dashboard 显示来源。
+- 下一步：观察 1~2 周 P3 成交质量；确认是否调整 Agent 配额或止盈止损策略。
 - 自动切宏观档位未生效；P3 实现时按设计加防抖/高危约束。
 - 15:05 发布依赖 Harness 运行；要每天必推需加 launchd/cron。
 - 公开仓库隐私风险未处理；如不能接受，改私有/脱敏。

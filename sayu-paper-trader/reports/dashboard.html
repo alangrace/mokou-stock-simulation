@@ -77,13 +77,13 @@ summary { cursor: pointer; color: var(--accent); font-size: 13px; }
       <div class="title">Mokou 模拟盘监控</div>
       <div class="subtitle">
         默认模拟盘 · id=1 · 策略 multi_factor
-        <span class="badge off">收盘后</span>
+        <span class="badge off">开盘前</span>
         <span class="badge">balanced</span>
       </div>
     </div>
     <div style="text-align:right">
-      <div class="subtitle">数据时点 2026-11-23T15:05:14+08:00</div>
-      <div class="subtitle">页面生成 2026-11-23 15:05:14 · 每 30 秒自动刷新</div>
+      <div class="subtitle">数据时点 2026-11-24T09:02:34+08:00</div>
+      <div class="subtitle">页面生成 2026-11-24 09:02:34 · 每 30 秒自动刷新</div>
       <a class="btn" href="" title="只重新加载当前 HTML；行情与账本由 papertrader tick 每 30 分钟重写">重新加载</a>
     </div>
   </div>
@@ -128,8 +128,8 @@ summary { cursor: pointer; color: var(--accent); font-size: 13px; }
     <div class="panel">
       <h2>今日概览</h2>
       <div class="plan-line">
-        <div>今日成交：<b>1</b> 笔</div>
-        <div>今日决策：<b>106</b> 条（含 hold）</div>
+        <div>今日成交：<b>0</b> 笔</div>
+        <div>今日决策：<b>0</b> 条（含 hold）</div>
         <div>持仓数：<b>5</b> / 8</div>
         <div>当前仓位：<b>23.4%</b></div>
         <div>最近成交：<b>11-23T10:00:03</b></div>
@@ -145,7 +145,7 @@ summary { cursor: pointer; color: var(--accent); font-size: 13px; }
 
   <div class="panel">
     <h2>最近成交</h2>
-    <div class="table-wrap"><table><thead><tr><th class="left">时间</th><th class="left">方向</th><th class="left">标的</th><th>股数</th><th>价格</th><th>金额</th><th>费用</th><th>已实现盈亏</th><th class="left">原因</th></tr></thead><tbody><tr><td class="left">11-23T10:00:03</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国神华 (601088)</td><td>700</td><td>51.140</td><td>35,798.00</td><td>8.95</td><td class="flat">+0.00</td><td class="left">入场计划：煤电一体化，高股息；RSI 过高，只做观察</td></tr><tr><td class="left">11-19T10:01:19</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国石化 (600028)</td><td>8,500</td><td>5.880</td><td>49,980.00</td><td>12.50</td><td class="flat">+0.00</td><td class="left">入场计划：一体化石化龙头，高股息；RSI 未超买时作为防御底仓</td></tr><tr><td class="left">11-18T13:14:59</td><td class="left"><span class="side buy">买入</span></td><td class="left">伊利股份 (600887)</td><td>1,500</td><td>32.330</td><td>48,495.00</td><td>12.12</td><td class="flat">+0.00</td><td class="left">入场计划：乳制品龙头，必需消费属性；估值低位，等超买消化</td></tr><tr><td class="left">11-18T13:00:05</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国建筑 (601668)</td><td>10,500</td><td>4.720</td><td>49,560.00</td><td>12.39</td><td class="flat">+0.00</td><td class="left">入场计划：低估值建筑央企，高股息与稳增长属性；均线多头，防御档可用</td></tr><tr><td class="left">11-18T13:00:05</td><td class="left"><span class="side buy">买入</span></td><td class="left">兴业银行 (601166)</td><td>2,500</td><td>19.990</td><td>49,975.00</td><td>12.49</td><td class="flat">+0.00</td><td class="left">入场计划：低估值股份行，股息率提供安全垫；均线多头 + MACD 金叉，作为防御档银行底仓</td></tr></tbody></table></div>
+    <div class="table-wrap"><table><thead><tr><th class="left">时间</th><th class="left">方向</th><th class="left">标的</th><th class="left">来源</th><th>股数</th><th>价格</th><th>金额</th><th>费用</th><th>已实现盈亏</th><th class="left">原因</th></tr></thead><tbody><tr><td class="left">11-23T10:00:03</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国神华 (601088)</td><td class="left">规则</td><td>700</td><td>51.140</td><td>35,798.00</td><td>8.95</td><td class="flat">+0.00</td><td class="left">入场计划：煤电一体化，高股息；RSI 过高，只做观察</td></tr><tr><td class="left">11-19T10:01:19</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国石化 (600028)</td><td class="left">规则</td><td>8,500</td><td>5.880</td><td>49,980.00</td><td>12.50</td><td class="flat">+0.00</td><td class="left">入场计划：一体化石化龙头，高股息；RSI 未超买时作为防御底仓</td></tr><tr><td class="left">11-18T13:14:59</td><td class="left"><span class="side buy">买入</span></td><td class="left">伊利股份 (600887)</td><td class="left">规则</td><td>1,500</td><td>32.330</td><td>48,495.00</td><td>12.12</td><td class="flat">+0.00</td><td class="left">入场计划：乳制品龙头，必需消费属性；估值低位，等超买消化</td></tr><tr><td class="left">11-18T13:00:05</td><td class="left"><span class="side buy">买入</span></td><td class="left">中国建筑 (601668)</td><td class="left">规则</td><td>10,500</td><td>4.720</td><td>49,560.00</td><td>12.39</td><td class="flat">+0.00</td><td class="left">入场计划：低估值建筑央企，高股息与稳增长属性；均线多头，防御档可用</td></tr><tr><td class="left">11-18T13:00:05</td><td class="left"><span class="side buy">买入</span></td><td class="left">兴业银行 (601166)</td><td class="left">规则</td><td>2,500</td><td>19.990</td><td>49,975.00</td><td>12.49</td><td class="flat">+0.00</td><td class="left">入场计划：低估值股份行，股息率提供安全垫；均线多头 + MACD 金叉，作为防御档银行底仓</td></tr></tbody></table></div>
   </div>
 
   <div class="panel">
