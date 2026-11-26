@@ -305,6 +305,9 @@ python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revisi
 python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revision_type":"take_adjust","plan_take_price":38,"reason":"突破后上调","evidence":"放量站上MA20"}'
 SAYU_AGENT_TRADING=1 python3.12 -m papertrader.cli agent plan-update --execute --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
 
+# 决策上下文（--compact 裁到 ~60KB，省 token）
+python3.12 -m papertrader.cli agent context --account 默认模拟盘 --compact
+
 # 自动移动止损：浮盈 ≥+8% 时把止损上移到现价 -3%（只改计划字段，不成交）
 python3.12 -m papertrader.cli agent trail             # dry-run
 python3.12 -m papertrader.cli agent trail --execute   # 写入（需开关打开）

@@ -226,6 +226,10 @@ def _json_payload(args) -> dict:
 
 def cmd_agent_context(args) -> int:
     context = agent_mod.build_context(args.account)
+    if getattr(args, "compact", False):
+        from .agent import compact_context
+
+        context = compact_context(context)
     print(json.dumps(context, ensure_ascii=False, indent=2))
     return 0
 
@@ -462,6 +466,7 @@ def build_parser() -> argparse.ArgumentParser:
     actx = agent_sub.add_parser("context", help="输出一轮决策所需的 JSON 上下文")
     actx.add_argument("--account", default="默认模拟盘")
     actx.add_argument("--json", action="store_true", help="兼容 Agent 调用的显式 JSON 标志")
+    actx.add_argument("--compact", action="store_true", help="裁剪上下文（去掉长历史与非关键指标）")
     actx.set_defaults(func=cmd_agent_context)
 
     aquote = agent_sub.add_parser("quote", help="批量查询行情")

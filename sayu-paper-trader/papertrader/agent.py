@@ -110,3 +110,42 @@ def build_context(account_name: str, market: MarketClient | None = None) -> dict
         "recent_trades": data["trades"],
         "recent_decisions": data["decisions"],
     }
+
+_KEEP_INDICATORS = (
+    "close", "ma20", "ma60", "above_ma20", "ma_bull", "ma_bear",
+    "rsi6", "macd_golden_cross_3d", "macd_death_cross_3d", "vol_ratio",
+    "pct_20d", "atr_pct",
+)
+
+
+def compact_context(context: dict, keep_decisions: int = 12, keep_trades: int = 8) -> dict:
+    """把上下文裁到决策必需字段，减少 token 消耗。
+
+    - 候选只留 code/name/sector/held/quote/score/reasons/blockers 与少量关键指标；
+    - 历史决策/成交只留最近若干条；
+    - 计划里去掉 universe 的 thesis 长文（候选里已有）以外的冗余字段不动。
+    """
+    out = dict(context)
+    candidates = []
+    for item in context.get("candidates", []):
+        ind = item.get("indicators") or {}
+        slim = {k: item.get(k) for k in ("code", "name", "sector", "held", "weight", "score", "reasons", "blockers", "error")}
+        if item.get("held"):
+            slim["thesis"] = item.get("thesis", "")
+        quote = item.get("quote") or None
+        slim["quote"] = {k: quote.get(k) for k in ("price", "change_pct", "name")} if quote else None
+        slim["indicators"] = {k: ind.get(k) for k in _KEEP_INDICATORS if k in ind}
+        candidates.append(slim)
+    out["candidates"] = candidates
+    out["recent_decisions"] = context.get("recent_decisions", [])[:keep_decisions]
+    out["recent_trades"] = context.get("recent_trades", [])[:keep_trades]
+    plan_record = context.get("plan") or {}
+    if plan_record.get("payload"):
+        plan = dict(plan_record["payload"])
+        plan["universe"] = [
+            {k: c.get(k) for k in ("code", "name", "sector", "defensive", "weight")}
+            for c in plan.get("universe", [])
+        ]
+        out["plan"] = dict(plan_record, payload=plan)
+    return out
+

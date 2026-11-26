@@ -9,10 +9,11 @@
 from __future__ import annotations
 
 import html
+import json
 from datetime import datetime
 from pathlib import Path
 
-from . import ledger, report
+from . import ledger, macro, report
 from .calendar import session_state
 from .config import REPORT_DIR, TZ
 
@@ -260,6 +261,88 @@ def _decisions_table(rows: list[dict]) -> str:
     )
 
 
+_AGENT_STATUS_TEXT = {
+    "dry_run_hold": "持有",
+    "dry_run_signal": "信号",
+    "dry_run_ok": "通过",
+    "dry_run_blocked": "拒绝",
+    "agent_trade_blocked": "拒绝",
+    "plan_dry_run_ok": "修订通过",
+    "plan_dry_run_blocked": "修订拒绝",
+    "plan_write_blocked": "修订拒绝",
+    "plan_applied": "修订写入",
+    "trail_applied": "止损上移",
+    "hold": "持有",
+    "ok": "记录",
+}
+
+
+def _agent_decision_text(record: dict) -> tuple[str, str, str]:
+    """把 agent_run.decision_json 压成（标的, 结论, 依据）三列。"""
+    raw = record.get("decision_json") or "{}"
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else dict(raw)
+    except (TypeError, ValueError):
+        return "—", "—", str(raw)[:160]
+    proposal = payload.get("proposal") or payload.get("decision") or payload or {}
+    result = payload.get("result") or {}
+    code = str(result.get("code") or proposal.get("code") or "")
+    name = str(result.get("name") or proposal.get("name") or "")
+    if not name:
+        name = ""
+    target = f"{name} ({code})" if name and code else (code or name or "—")
+    action = str(proposal.get("action") or result.get("action") or proposal.get("revision_type") or "")
+    if result.get("applied"):
+        verdict = "已写入"
+    elif result and not result.get("ok", True):
+        verdict = "拒绝"
+    elif action == "buy":
+        verdict = "买入"
+    elif action == "sell":
+        verdict = "卖出"
+    elif action:
+        verdict = action
+    else:
+        verdict = "—"
+    blocked = str(result.get("blocked_by") or "")
+    reason = str(result.get("reason") or proposal.get("reason") or "")
+    if blocked:
+        reason = f"[{blocked}] {reason}"
+    elif not reason:
+        reason = str(proposal.get("thesis") or "")
+    return target, verdict, reason
+
+
+def _agent_runs_table(rows: list[dict]) -> str:
+    if not rows:
+        return (
+            '<div class="empty">暂无 Agent 决策记录。开关打开后，每轮 '
+            "<code>agent decision</code> / <code>agent trade</code> / <code>agent trail</code> "
+            "都会写到这里。</div>"
+        )
+    body = []
+    for record in rows[:24]:
+        target, verdict, reason = _agent_decision_text(record)
+        status = str(record.get("status") or "")
+        status_text = _AGENT_STATUS_TEXT.get(status, status or "—")
+        tone = "down" if "拒绝" in status_text or "拒绝" in verdict else "up"
+        body.append(
+            "<tr>"
+            f'<td class="left">{_esc(str(record.get("started_at") or "")[5:19])}</td>'
+            f'<td class="left"><span class="side {tone}">{_esc(status_text)}</span></td>'
+            f'<td class="left">{_esc(target)}</td>'
+            f'<td class="left">{_esc(verdict)}</td>'
+            f'<td class="left">{_esc(reason[:180])}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="table-wrap"><table><thead><tr>'
+        '<th class="left">时间</th><th class="left">状态</th><th class="left">标的</th>'
+        '<th class="left">结论</th><th class="left">判断依据</th>'
+        '</tr></thead><tbody>' + "".join(body) + "</tbody></table></div>"
+    )
+
+
 def _plan_panel(plan: dict | None) -> str:
     if not plan:
         return '<div class="empty">未加载入场计划</div>'
@@ -322,6 +405,8 @@ def build(account_name: str, market=None) -> Path:
         if agent_on
         else "agent switch --on 可开启；当前只做规则交易"
     )
+
+    agent_runs = macro.list_agent_runs(limit=40, account_id=int(acc["id"]))
 
     today = datetime.now(TZ).date().isoformat()
     all_decisions = ledger.recent_decisions(int(acc["id"]), limit=200)
@@ -412,6 +497,11 @@ def build(account_name: str, market=None) -> Path:
   <div class="panel">
     <h2>最近成交</h2>
     {_trades_table(data["trades"][:12])}
+  </div>
+
+  <div class="panel">
+    <h2>Agent 判断记录 <span class="hint">模型提议 / 计划修订 / 自动止损，含拦截原因</span></h2>
+    {_agent_runs_table(agent_runs)}
   </div>
 
   <div class="panel">

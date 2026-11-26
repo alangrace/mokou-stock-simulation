@@ -168,12 +168,16 @@ def log_agent_run(
         return int(conn.execute("SELECT last_insert_rowid() AS id").fetchone()["id"])
 
 
-def list_agent_runs(limit: int = 50) -> list[dict]:
+def list_agent_runs(limit: int = 50, account_id: int | None = None) -> list[dict]:
     ledger.init_db()
     with ledger.connect() as conn:
-        return [
-            dict(r)
-            for r in conn.execute(
+        if account_id is None:
+            rows = conn.execute(
                 "SELECT * FROM agent_run ORDER BY id DESC LIMIT ?", (int(limit),)
             )
-        ]
+        else:
+            rows = conn.execute(
+                "SELECT * FROM agent_run WHERE account_id = ? ORDER BY id DESC LIMIT ?",
+                (int(account_id), int(limit)),
+            )
+        return [dict(r) for r in rows]

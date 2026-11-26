@@ -60,6 +60,7 @@
 | 写模拟盘收盘快照（tick + 发布） | 工作日 15:05 | schedule-c9926178-0664-48e2-a330-d97c332612f8 |
 | Agent dry-run 决策 | 2026-11-20 13:00 至 2026-11-23 15:00，工作日 09:00–14:30 每 30 分钟 | schedule-1dfe4947-ab14-49c5-87fb-377138d8161c |
 | Agent dry-run 收盘前扫描 | 同一时段 14:45 | schedule-203b40f1-5461-429d-ae74-8d8e146b916e |
+| **Agent 主动决策（LLM 决策层）** | 工作日 10:15 / 11:15 / 13:15 | schedule-3ada88b4-7ad2-4e88-a7f6-f61bae5b7273 |
 | 检查 SayuStock 模拟盘策略更新 | 每周一 09:00，首次 2026-11-23 | schedule-f3464ae8-63cd-4bf6-87c2-e972d2039b69 |
 | P3 切换复盘提醒 | 2026-11-23 15:30 一次性 | schedule-b83eff03-249f-488a-a4f6-5205426bcf2a |
 
@@ -117,6 +118,11 @@
   - 新增 `agent switch --on/--off`（写/删 flag）与 `agent trail [--execute]`（单票浮盈 ≥+8% 时把止损上移到现价 -3%，单次幅度 ≥2%，仍受 20h 冷却、不得高于现价、不得宽于模式硬止损约束）。
   - `tick` 在开关打开时会自动跑一轮 trail；**只改 position 的计划字段，不产生买卖流水、不动现金**。
   - 开关已置为开启（flag 存在）。当前 7 只持仓浮盈均 <8%，尚无止损被上移。
+- 2026-11-26 15:20 接入 LLM 决策层（方案 A 落地）：
+  - 新增 schedule「Agent 主动决策」：工作日 10:15 / 11:15 / 13:15 各一轮，跑 `agent context --compact` → 判断 → `agent trade --execute` 或 `agent decision`（**无成交也必须留痕**）。
+  - 与规则 tick 错开 15 分钟，避免抢同一批报价；Agent 只做「主动机会」，规则 tick 继续全量巡检。
+  - `agent context --compact` 把 89KB 裁到 60KB（候选只留关键指标、历史只留最近 12 条决策/8 条成交），降 token 成本。
+  - dashboard 新增「Agent 判断记录」面板：时间 / 状态 / 标的（带名称）/ 结论 / 判断依据，含 `blocked_by` 拦截码。
 - 下一步：观察 1~2 周 P3 成交质量；确认是否调整 Agent 配额或止盈止损策略。
 - 自动切宏观档位未生效；P3 实现时按设计加防抖/高危约束。
 - 15:05 发布依赖 Harness 运行；要每天必推需加 launchd/cron。
