@@ -730,6 +730,167 @@ class PlanRevisionTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
 
 
+class SwitchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        from papertrader import switches
+
+        self.switches = switches
+        switches.set_agent_trading(False)
+
+    def tearDown(self) -> None:
+        self.switches.set_agent_trading(False)
+
+    def test_default_off(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            self.assertFalse(self.switches.agent_trading_enabled())
+
+    def test_flag_persists(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            path = self.switches.set_agent_trading(True)
+            self.assertTrue(path.exists())
+            self.assertTrue(self.switches.agent_trading_enabled())
+            self.assertTrue(self.switches.flag_path().parent.samefile(path.parent))
+
+    def test_env_overrides_flag(self) -> None:
+        self.switches.set_agent_trading(True)
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "0"}):
+            self.assertFalse(self.switches.agent_trading_enabled())
+        with mock.patch.dict(os.environ, {"SAYU_AGENT_TRADING": "1"}):
+            self.switches.set_agent_trading(False)
+            self.assertTrue(self.switches.agent_trading_enabled())
+
+    def test_switch_gates_write_path(self) -> None:
+        account, _ = PlanRevisionTests()._write_account()
+        payload = {"code": "600887", "revision_type": "trail_stop",
+                   "plan_stop_price": 32.2, "reason": "浮盈超8%后上移止损保本"}
+        quote = SimpleNamespace(price=36.0)
+
+        class _M:
+            def quote(self, code: str):
+                return quote
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            self.switches.set_agent_trading(False)
+            blocked = plan_revision.validate(
+                account["name"], payload, market=_M(), dry_run=False,
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+            self.assertEqual(blocked["blocked_by"], "agent_trading_disabled")
+
+            self.switches.set_agent_trading(True)
+            applied = plan_revision.validate(
+                account["name"], payload, market=_M(), dry_run=False,
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+            self.assertTrue(applied["applied"], applied)
+
+
+class AutoTrailTests(unittest.TestCase):
+    def _account(self, name: str, *, cost: float, stop: float) -> tuple[dict, dict]:
+        from papertrader.plan import validate_plan
+
+        account = ledger.create_account(name, cash=100_000)
+        raw = {
+            "plan_id": f"auto-{name}",
+            "name": "自动止损测试计划",
+            "account": name,
+            "macro": {"regime": "中性", "note": "测试用宏观依据八字以上"},
+            "risk": {"max_total_exposure_pct": 0.6, "max_single_pct": 0.15,
+                     "max_positions": 8, "min_cash_pct": 0.1, "max_daily_trades": 12},
+            "entry": {"stop_pct": -0.06, "take_pct": 0.12},
+            "universe": [{"code": "600887", "name": "伊利股份", "thesis": "测试"}],
+        }
+        ledger.save_plan(account["id"], validate_plan(raw))
+        ledger.record_fill(
+            account_id=account["id"], code="600887", name="伊利股份", side="buy",
+            price=cost, qty=1000, reason="测试",
+            snapshot={"plan_stop_price": stop, "plan_stop_pct": -0.06,
+                      "plan_take_price": round(cost * 1.4, 3), "plan_thesis": "测试"},
+            trade_date="2026-11-19", executed_at=datetime(2026, 11, 19, 10, 0, tzinfo=TZ),
+        )
+        return account, ledger.get_position(account["id"], "600887")
+
+    def _market(self, price: float):
+        quote = SimpleNamespace(price=price)
+
+        class _M:
+            def quote(self, code: str):
+                return quote
+
+        return _M()
+
+    def test_skips_below_profit_threshold(self) -> None:
+        account, _ = self._account(f"自动盘-low-{self._testMethodName}", cost=32.0, stop=30.08)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            picks = plan_revision.auto_trail_candidates(
+                account["name"], market=self._market(33.0),
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+        self.assertEqual(picks, [])
+
+    def test_picks_and_writes_above_threshold(self) -> None:
+        account, _ = self._account(f"自动盘-high-{self._testMethodName}", cost=32.0, stop=30.08)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            from papertrader import switches
+
+            switches.set_agent_trading(True)
+            try:
+                results = plan_revision.auto_trail_stops(
+                    account["name"], market=self._market(36.0), dry_run=False,
+                    now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+                )
+            finally:
+                switches.set_agent_trading(False)
+        self.assertEqual(len(results), 1, results)
+        applied = results[0]["result"]
+        self.assertTrue(applied["ok"], applied)
+        self.assertTrue(applied["applied"])
+        updated = ledger.get_position(account["id"], "600887")
+        self.assertAlmostEqual(updated["plan_stop_price"], round(36.0 * 0.97, 3), places=3)
+        self.assertAlmostEqual(
+            updated["plan_stop_pct"], round(36.0 * 0.97 / updated["avg_cost"] - 1.0, 4), places=4
+        )
+        self.assertEqual(updated["plan_rev_count"], 1)
+
+    def test_dry_run_does_not_write(self) -> None:
+        account, position = self._account(f"自动盘-dry-{self._testMethodName}", cost=32.0, stop=30.08)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            results = plan_revision.auto_trail_stops(
+                account["name"], market=self._market(36.0),
+                now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+            )
+        self.assertEqual(len(results), 1, results)
+        self.assertFalse(results[0]["result"].get("applied"))
+        self.assertEqual(ledger.get_position(account["id"], "600887")["plan_stop_price"], 30.08)
+
+    def test_cooldown_blocks_second_trail(self) -> None:
+        account, _ = self._account(f"自动盘-cool-{self._testMethodName}", cost=32.0, stop=30.08)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("SAYU_AGENT_TRADING", None)
+            from papertrader import switches
+
+            switches.set_agent_trading(True)
+            try:
+                first = plan_revision.auto_trail_stops(
+                    account["name"], market=self._market(36.0), dry_run=False,
+                    now=datetime(2026, 11, 23, 10, 0, tzinfo=TZ),
+                )
+                second = plan_revision.auto_trail_stops(
+                    account["name"], market=self._market(40.0), dry_run=False,
+                    now=datetime(2026, 11, 23, 11, 0, tzinfo=TZ),
+                )
+            finally:
+                switches.set_agent_trading(False)
+        self.assertTrue(first[0]["result"]["applied"])
+        self.assertEqual(second[0]["result"]["blocked_by"], "cooldown")
+
+
 if __name__ == "__main__":
     unittest.main()
 

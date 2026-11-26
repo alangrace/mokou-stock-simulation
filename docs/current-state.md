@@ -112,6 +112,11 @@
 - 2026-11-23 15:40 已统一「带名称」：agent decision 会自动回填股票名称，engine 指标错误也带名称。
 - P1b 已完成（2026-11-23 16:58）：agent plan-update 支持 --execute，但需 SAYU_AGENT_TRADING=1；写入只改计划字段并追加 hold 审计。
 - P3 已完成（2026-11-24 09:10）：agent trade --execute 可写库，需 SAYU_AGENT_TRADING=1；单日 Agent 3 笔、与 tick 共用 max_daily_trades、单日 Agent 金额 ≤10% 权益、回撤 2% 熔断；trade 表新增 source 字段并在 dashboard 显示来源。
+- 2026-11-26 15:00 打开 Agent 总开关并落地自动移动止损：
+  - 新增 `papertrader/switches.py`：环境变量 `SAYU_AGENT_TRADING` 优先，其次读 `data/agent_trading.flag`。**必须落盘**，因为 DSH 定时任务每次心跳都是全新 shell，不继承终端 export。
+  - 新增 `agent switch --on/--off`（写/删 flag）与 `agent trail [--execute]`（单票浮盈 ≥+8% 时把止损上移到现价 -3%，单次幅度 ≥2%，仍受 20h 冷却、不得高于现价、不得宽于模式硬止损约束）。
+  - `tick` 在开关打开时会自动跑一轮 trail；**只改 position 的计划字段，不产生买卖流水、不动现金**。
+  - 开关已置为开启（flag 存在）。当前 7 只持仓浮盈均 <8%，尚无止损被上移。
 - 下一步：观察 1~2 周 P3 成交质量；确认是否调整 Agent 配额或止盈止损策略。
 - 自动切宏观档位未生效；P3 实现时按设计加防抖/高危约束。
 - 15:05 发布依赖 Harness 运行；要每天必推需加 launchd/cron。

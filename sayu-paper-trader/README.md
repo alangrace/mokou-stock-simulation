@@ -289,8 +289,14 @@ python3.12 -m papertrader.cli agent trade --dry-run --json '{"action":"buy","cod
 python3.12 -m papertrader.cli agent decision --json '{"action":"hold","code":"600028","score":0.2,"reason":"……"}'
 python3.12 -m papertrader.cli agent runs --limit 20
 
-# P3：默认仍是 dry-run；--execute 且 SAYU_AGENT_TRADING=1 才真正成交
-export SAYU_AGENT_TRADING=1   # 显式开启 Agent 下单
+# 总开关：持久化到 data/agent_trading.flag（定时任务每次新 shell 也能读到）
+python3.12 -m papertrader.cli agent switch          # 查看状态
+python3.12 -m papertrader.cli agent switch --on     # 开启
+python3.12 -m papertrader.cli agent switch --off    # 关闭（kill switch）
+# 也可用环境变量临时覆盖：export SAYU_AGENT_TRADING=1（环境变量优先于 flag）
+
+# P3：默认仍是 dry-run；--execute 且开关打开才真正成交
+export SAYU_AGENT_TRADING=1   # 或已执行 agent switch --on
 python3.12 -m papertrader.cli agent trade --execute --json '{"action":"buy","code":"600900","qty":1000,"plan_stop_pct":-0.06,"plan_take_pct":0.12,"macro_regime":"防御","macro_note":"……","reason":"……","score":0.3}'
 python3.12 -m papertrader.cli agent trade --execute --json '{"action":"sell","code":"600900","qty":1000,"reason":"触发计划止盈"}'
 
@@ -298,7 +304,13 @@ python3.12 -m papertrader.cli agent trade --execute --json '{"action":"sell","co
 python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
 python3.12 -m papertrader.cli agent plan-update --json '{"code":"600887","revision_type":"take_adjust","plan_take_price":38,"reason":"突破后上调","evidence":"放量站上MA20"}'
 SAYU_AGENT_TRADING=1 python3.12 -m papertrader.cli agent plan-update --execute --json '{"code":"600887","revision_type":"trail_stop","plan_stop_price":31.5,"reason":"浮盈后上移止损"}'
+
+# 自动移动止损：浮盈 ≥+8% 时把止损上移到现价 -3%（只改计划字段，不成交）
+python3.12 -m papertrader.cli agent trail             # dry-run
+python3.12 -m papertrader.cli agent trail --execute   # 写入（需开关打开）
 ```
+
+`tick` 在开关打开时会自动跑一轮 `auto_trail_stops`：浮盈 ≥8%、上移幅度 ≥2%、20 小时冷却、不得高于现价、不得宽于模式硬止损，全部通过才写库。
 
 计划修订规则：`backfill` / `trail_stop` / `macro_tighten` / `take_adjust`；20 小时冷却、单次 ≥2% 台阶、止损只上移、不能高于现价、不能宽于模式硬止损、单次止盈上调 ≤20%，每次写入都会追加一条 hold 决策做审计。
 
@@ -310,7 +322,7 @@ P3 限额（Agent 独立配额，规则 tick 不受影响）：
 | 与规则 tick 共用 | max_daily_trades（计划值 12） |
 | 单日 Agent 成交金额 | ≤ 10% 权益 |
 | 当日回撤熔断 | 权益跌破初始 × 98% 时停用 |
-| 开关 | SAYU_AGENT_TRADING，默认 0 |
+| 开关 | `agent switch --on/--off`（写 data/agent_trading.flag）；env SAYU_AGENT_TRADING 优先，默认关闭 |
 
 详细设计见 [docs/agent-mode-design.md](../docs/agent-mode-design.md)。P2 dry-run 已于 2026-11-23 结束，复盘见 [docs/p2-review.md](../docs/p2-review.md)。
 

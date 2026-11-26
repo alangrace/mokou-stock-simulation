@@ -12,10 +12,9 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
-from . import ledger, macro, plan as plan_mod, planner, rules
+from . import ledger, macro, plan as plan_mod, planner, rules, switches
 from .calendar import session_state
 from .engine import MACRO_CAPS, _quote_dict
 from .market import MarketClient, MarketError
@@ -26,8 +25,8 @@ AGENT_MAX_DAILY_DRAWDOWN_PCT = 0.02
 
 
 def agent_trading_enabled() -> bool:
-    """P3 写库开关：默认关闭，需显式设置 SAYU_AGENT_TRADING=1。"""
-    return str(os.environ.get("SAYU_AGENT_TRADING", "0")).strip().lower() in ("1", "true", "yes", "on")
+    """P3 写库开关：默认关闭，需环境变量 SAYU_AGENT_TRADING=1 或 data/agent_trading.flag。"""
+    return switches.agent_trading_enabled()
 
 
 def _agent_limits(

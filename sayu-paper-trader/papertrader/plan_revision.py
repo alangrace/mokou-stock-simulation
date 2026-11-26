@@ -11,11 +11,10 @@ P1a 只返回校验结果并写 agent_run 审计，不修改 position。
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timedelta
 from typing import Any
 
-from . import ledger, macro, plan as plan_mod
+from . import ledger, macro, plan as plan_mod, switches
 from .config import TZ
 from .market import MarketClient, MarketError
 
@@ -229,8 +228,8 @@ def evaluate(
 
 
 def agent_trading_enabled() -> bool:
-    """P1b/P3 写库开关：默认关闭，需显式设置 SAYU_AGENT_TRADING=1。"""
-    return str(os.environ.get("SAYU_AGENT_TRADING", "0")).strip().lower() in ("1", "true", "yes", "on")
+    """P1b/P3 写库开关：默认关闭，需环境变量 SAYU_AGENT_TRADING=1 或 data/agent_trading.flag。"""
+    return switches.agent_trading_enabled()
 
 
 def apply_revision(account_id: int, position: dict, result: dict, note: str = "") -> dict:
@@ -328,3 +327,87 @@ def validate(
         return result
     macro.log_agent_run(int(account["id"]), decision={"proposal": payload, "result": result}, status=status)
     return result
+
+# ============================================================
+# 自动移动止损（trail_stop）
+# ============================================================
+AUTO_TRAIL_PROFIT = 0.08  # 浮盈门槛，与 trail_stop 硬闸一致
+AUTO_TRAIL_KEEP = 0.03  # 新止损挂在现价下方 3%
+AUTO_TRAIL_MIN_STEP = 0.02  # 与 MIN_STEP 一致
+
+
+def auto_trail_candidates(
+    account_name: str,
+    *,
+    market: MarketClient | None = None,
+    now: datetime | None = None,
+) -> list[dict]:
+    """挑出浮盈达标、止损可以上移的持仓；只读，不写库。
+
+    每只票都过 ``evaluate`` 的全部硬闸：浮盈 ≥8%、只能上移、单次 ≥2%、
+    不得高于现价、不得宽于模式硬止损、20 小时冷却。
+    """
+    account = ledger.get_account(account_name)
+    if account is None:
+        raise RuntimeError(f"账户不存在：{account_name}")
+    plan_record = ledger.get_plan(int(account["id"]))
+    if plan_record is None:
+        raise RuntimeError("没有启用的入场计划")
+    market = market or MarketClient()
+    moment = now or datetime.now(TZ)
+    picks: list[dict] = []
+    for position in ledger.positions(int(account["id"])):
+        code = str(position["code"])
+        name = str(position.get("name") or "")
+        avg = float(position.get("avg_cost") or 0.0)
+        old_stop = _num(position.get("plan_stop_price"))
+        if avg <= 0 or old_stop is None:
+            continue
+        try:
+            price = float(market.quote(code).price)
+        except Exception:  # noqa: BLE001 - 外部不可信输入，单票失败不影响整轮
+            continue
+        profit = price / avg - 1.0
+        if profit < AUTO_TRAIL_PROFIT:
+            continue
+        new_stop = round(price * (1.0 - AUTO_TRAIL_KEEP), 3)
+        if (new_stop - old_stop) / old_stop < AUTO_TRAIL_MIN_STEP:
+            continue
+        picks.append(
+            {
+                "code": code,
+                "name": name,
+                "price": round(price, 3),
+                "avg_cost": round(avg, 3),
+                "profit_pct": round(profit, 4),
+                "old_stop": old_stop,
+                "new_stop": new_stop,
+            }
+        )
+    return picks
+
+
+def auto_trail_stops(
+    account_name: str,
+    *,
+    market: MarketClient | None = None,
+    now: datetime | None = None,
+    dry_run: bool = True,
+) -> list[dict]:
+    """对浮盈达标持仓自动上移止损；写库仍受开关与 ``evaluate`` 双重约束。"""
+    results: list[dict] = []
+    for pick in auto_trail_candidates(account_name, market=market, now=now):
+        payload = {
+            "code": pick["code"],
+            "revision_type": "trail_stop",
+            "plan_stop_price": pick["new_stop"],
+            "reason": f"自动移动止损：浮盈 {pick['profit_pct']:.1%}，止损 {pick['old_stop']} → {pick['new_stop']}",
+        }
+        try:
+            result = validate(account_name, payload, market=market, now=now, dry_run=dry_run)
+        except Exception as exc:  # noqa: BLE001 - 单票失败不应中断整轮
+            result = _bad(pick["code"], pick["name"], "trail_stop", pick["price"],
+                          f"自动修订异常：{type(exc).__name__}: {exc}", "auto_trail_error")
+        results.append({"pick": pick, "result": result})
+    return results
+

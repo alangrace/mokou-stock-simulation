@@ -312,6 +312,17 @@ def build(account_name: str, market=None) -> Path:
     min_cash_pct = float(plan_risk.get("min_cash_pct", 0.0))
     max_positions = int(plan_risk.get("max_positions", 0))
 
+    from . import switches
+
+    agent_on = switches.agent_trading_enabled()
+    agent_badge_class = "on" if agent_on else "off"
+    agent_badge_text = "Agent 交易 开启" if agent_on else "Agent 交易 关闭"
+    agent_switch_hint = (
+        "agent switch --on 已开启：定时 tick 会自动移动止损，Agent 可受控下单"
+        if agent_on
+        else "agent switch --on 可开启；当前只做规则交易"
+    )
+
     today = datetime.now(TZ).date().isoformat()
     all_decisions = ledger.recent_decisions(int(acc["id"]), limit=200)
     today_decisions = [d for d in all_decisions if d["created_at"][:10] == today]
@@ -363,6 +374,7 @@ def build(account_name: str, market=None) -> Path:
         {_esc(acc["name"])} · id={int(acc["id"])} · 策略 {_esc(acc["strategy"])}
         <span class="badge {session_class}">{_esc(session_text)}</span>
         <span class="badge">{_esc(acc["mode"])}</span>
+        <span class="badge {agent_badge_class}" title="agent switch：{_esc(agent_switch_hint)}">{_esc(agent_badge_text)}</span>
       </div>
     </div>
     <div style="text-align:right">

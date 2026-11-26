@@ -299,6 +299,41 @@ def cmd_agent_plan_update(args) -> int:
     return 0
 
 
+def cmd_agent_switch(args) -> int:
+    from . import switches
+
+    if args.on and args.off:
+        raise SystemExit("--on 与 --off 不能同时用")
+    if args.on:
+        switches.set_agent_trading(True)
+    elif args.off:
+        switches.set_agent_trading(False)
+    status = switches.switch_status()
+    print(json.dumps(status, ensure_ascii=False, indent=2))
+    print("开关：" + ("已开启" if status["enabled"] else "已关闭"))
+    return 0
+
+
+def cmd_agent_trail(args) -> int:
+    from . import plan_revision
+
+    execute = bool(args.execute)
+    if execute and not plan_revision.agent_trading_enabled():
+        raise SystemExit("自动移动止损需要显式开启：agent switch --on（或 SAYU_AGENT_TRADING=1）")
+    results = plan_revision.auto_trail_stops(args.account, dry_run=not execute)
+    if not results:
+        print("自动移动止损：没有浮盈达标的持仓（需 ≥+8% 且上移幅度 ≥2%）")
+        return 0
+    for item in results:
+        pick, result = item["pick"], item["result"]
+        state = "已写入" if result.get("applied") else ("通过" if result["ok"] else "拒绝")
+        print(
+            f"{state} {pick['code']} {pick['name']} 浮盈 {pick['profit_pct']:+.1%} "
+            f"止损 {pick['old_stop']} → {pick['new_stop']}｜{result['reason']}"
+        )
+    return 0
+
+
 def cmd_tick(args) -> int:
     """定时任务专用：交易时段跑一轮；收盘后写快照；其余时段直接跳过。"""
     state = session_state()
@@ -317,6 +352,16 @@ def cmd_tick(args) -> int:
                 f"成交 {side} {t['code']} {t['qty']} 股 @{t['price']:.3f} "
                 f"费用 {t['fee']:.2f} 已实现 {t['realized_pnl']:+.2f}"
             )
+        if plan_revision.agent_trading_enabled():
+            trails = plan_revision.auto_trail_stops(args.account, dry_run=False)
+            applied = [t for t in trails if t["result"].get("applied")]
+            blocked = [t for t in trails if not t["result"]["ok"]]
+            if trails:
+                print(f"自动移动止损：候选 {len(trails)} 只，写入 {len(applied)} 只，拒绝 {len(blocked)} 只")
+            for item in trails:
+                pick, res = item["pick"], item["result"]
+                tag = "已写入" if res.get("applied") else "拒绝"
+                print(f"  止损 {tag} {pick['code']} {pick['name']} {pick['old_stop']} → {pick['new_stop']}｜{res['reason']}")
         acc = result.account
         print(
             f"账户: 现金 {acc.get('cash', 0):,.2f} 持仓市值 {acc.get('position_value', 0):,.2f} "
@@ -456,6 +501,16 @@ def build_parser() -> argparse.ArgumentParser:
     aplan.add_argument("--dry-run", action="store_true", help="显式 dry-run（默认行为）")
     aplan.add_argument("--execute", action="store_true", help="真正写入 position，需 SAYU_AGENT_TRADING=1")
     aplan.set_defaults(func=cmd_agent_plan_update)
+
+    asw = agent_sub.add_parser("switch", help="查看/切换 Agent 交易总开关（持久化）")
+    asw.add_argument("--on", action="store_true", help="开启（写 data/agent_trading.flag）")
+    asw.add_argument("--off", action="store_true", help="关闭（删除 flag）")
+    asw.set_defaults(func=cmd_agent_switch)
+
+    atr = agent_sub.add_parser("trail", help="对浮盈达标持仓自动移动止损")
+    atr.add_argument("--account", default="默认模拟盘")
+    atr.add_argument("--execute", action="store_true", help="真正写入 position，需开关打开")
+    atr.set_defaults(func=cmd_agent_trail)
 
     amacro = agent_sub.add_parser("macro", help="宏观事件表 / 快照")
     amacro_sub = amacro.add_subparsers(dest="macro_cmd", required=True)
