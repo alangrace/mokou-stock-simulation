@@ -171,10 +171,15 @@ def _account_view(account: dict, positions: list[dict], quotes: dict[str, dict])
         pnl = (price - float(p["avg_cost"])) * int(p["qty"])
         position_value += mv
         unrealized += pnl
+        change_pct = q.get("change_pct")
+        prev_close = q.get("prev_close")
+        day_pnl = (price - float(prev_close)) * int(p["qty"]) if prev_close else None
         rows.append(
             {
                 **p,
                 "current_price": round(price, 3),
+                "change_pct": round(float(change_pct), 2) if change_pct is not None else None,
+                "day_pnl": round(day_pnl, 2) if day_pnl is not None else None,
                 "market_value": round(mv, 2),
                 "unrealized_pnl": round(pnl, 2),
                 "unrealized_pnl_pct": round(pnl / (float(p["avg_cost"]) * int(p["qty"])) * 100, 2)

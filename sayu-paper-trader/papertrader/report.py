@@ -64,9 +64,14 @@ def render_text(data: dict[str, Any]) -> str:
         lines.append("")
         lines.append("持仓：")
         for row in view["positions"]:
+            chg = row.get("change_pct")
+            day_pnl = row.get("day_pnl")
+            chg_text = f"{chg:+.2f}%" if chg is not None else "—"
+            day_text = f"{day_pnl:+,.2f}" if day_pnl is not None else "—"
             lines.append(
                 f"  {row['name']}({row['code']}) {row['qty']} 股 成本 {row['avg_cost']:.3f} "
-                f"现价 {row['current_price']:.3f} 市值 {_fmt_money(row['market_value'])} "
+                f"现价 {row['current_price']:.3f} 今日 {chg_text}（{day_text}） "
+                f"市值 {_fmt_money(row['market_value'])} "
                 f"浮盈 {row['unrealized_pnl']:+.2f}（{row['unrealized_pnl_pct']:+.2f}%）"
                 f" 止损 {row.get('plan_stop_price') or '—'} 止盈 {row.get('plan_take_price') or '—'}"
             )

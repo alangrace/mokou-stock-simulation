@@ -169,6 +169,14 @@ def _positions_table(rows: list[dict]) -> str:
         stop = p.get("plan_stop_price")
         take = p.get("plan_take_price")
         dist = ((price - float(stop)) / price * 100) if stop and price else None
+        chg = p.get("change_pct")
+        day_pnl = p.get("day_pnl")
+        chg_cls = _cls(float(chg)) if chg is not None else "flat"
+        chg_text = _pct(float(chg)) if chg is not None else "—"
+        if day_pnl is None:
+            day_cls, day_text = "flat", "—"
+        else:
+            day_cls, day_text = _cls(float(day_pnl)), f"{float(day_pnl):+,.2f}"
         body.append(
             "<tr>"
             f'<td class="left">{_esc(p["code"])}</td>'
@@ -176,6 +184,8 @@ def _positions_table(rows: list[dict]) -> str:
             f'<td>{int(p["qty"]):,}</td>'
             f'<td>{float(p["avg_cost"]):.3f}</td>'
             f'<td>{price:.3f}</td>'
+            f'<td class="{chg_cls}">{chg_text}</td>'
+            f'<td class="{day_cls}">{day_text}</td>'
             f'<td>{_money(float(p["market_value"]))}</td>'
             f'<td class="{_cls(float(p["unrealized_pnl"]))}">{float(p["unrealized_pnl"]):+,.2f}</td>'
             f'<td class="{_cls(float(p["unrealized_pnl_pct"]))}">{_pct(float(p["unrealized_pnl_pct"]))}</td>'
@@ -187,6 +197,7 @@ def _positions_table(rows: list[dict]) -> str:
     return (
         '<div class="table-wrap"><table><thead><tr>'
         '<th class="left">代码</th><th class="left">名称</th><th>股数</th><th>成本</th><th>现价</th>'
+        '<th>今日涨跌</th><th>今日盈亏</th>'
         '<th>市值</th><th>浮盈</th><th>收益率</th><th>计划止损</th><th>计划止盈</th><th>距止损</th>'
         '</tr></thead><tbody>' + "".join(body) + "</tbody></table></div>"
     )
