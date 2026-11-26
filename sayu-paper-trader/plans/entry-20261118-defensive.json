@@ -112,6 +112,86 @@
       "weight": 1,
       "defensive": false,
       "thesis": "安防与智能物联龙头，MACD 金叉；防御档不买成长，观察"
+    },
+    {
+      "code": "000858",
+      "name": "五粮液",
+      "sector": "白酒",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "次高端白酒龙头，渠道库存改善、估值历史低位；白酒属可选消费，防御档只观察"
+    },
+    {
+      "code": "601318",
+      "name": "中国平安",
+      "sector": "保险",
+      "weight": 1,
+      "defensive": true,
+      "thesis": "保险龙头，低估值高股息，负债端与投资端均有修复空间；防御档可作金融底仓"
+    },
+    {
+      "code": "600030",
+      "name": "中信证券",
+      "sector": "券商",
+      "weight": 0.8,
+      "defensive": false,
+      "thesis": "券商龙头，成交活跃度提升时弹性大；防御档不买"
+    },
+    {
+      "code": "300750",
+      "name": "宁德时代",
+      "sector": "锂电",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "全球动力电池龙头，储能与海外客户带来增量；成长股，防御档不买"
+    },
+    {
+      "code": "002594",
+      "name": "比亚迪",
+      "sector": "汽车",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "新能源车龙头，出口与高端车型放量；成长股，防御档不买"
+    },
+    {
+      "code": "601899",
+      "name": "紫金矿业",
+      "sector": "有色",
+      "weight": 0.8,
+      "defensive": true,
+      "thesis": "金铜资源龙头，受益金价与铜价上行；属上游资源，防御档可配（等站上 MA20）"
+    },
+    {
+      "code": "000333",
+      "name": "美的集团",
+      "sector": "家电",
+      "weight": 1,
+      "defensive": false,
+      "thesis": "家电龙头，全球化与 ToB 业务扩张；可选消费，防御档只观察"
+    },
+    {
+      "code": "600309",
+      "name": "万华化学",
+      "sector": "化工",
+      "weight": 0.8,
+      "defensive": true,
+      "thesis": "化工龙头，一体化成本优势，盈利处周期底部；上游资源属性，防御档可观察"
+    },
+    {
+      "code": "002475",
+      "name": "立讯精密",
+      "sector": "电子",
+      "weight": 0.8,
+      "defensive": false,
+      "thesis": "消费电子精密制造龙头，绑定大客户；成长股，防御档不买"
+    },
+    {
+      "code": "300059",
+      "name": "东方财富",
+      "sector": "互联网券商",
+      "weight": 0.8,
+      "defensive": false,
+      "thesis": "互联网券商+基金代销，牛市弹性标的；防御档不买"
     }
   ]
 }
