@@ -13,7 +13,7 @@
     "initial_cash": 1000000,
     "max_total_exposure_pct": 0.8,
     "max_single_pct": 0.1,
-    "max_positions": 8,
+    "max_positions": 10,
     "min_cash_pct": 0.1,
     "max_daily_trades": 12,
     "max_drawdown_pct": -0.2
